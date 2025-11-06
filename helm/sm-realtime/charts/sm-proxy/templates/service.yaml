@@ -9,9 +9,15 @@ metadata:
   annotations:
     {{- toYaml .Values.additionalAnnotations | nindent 4 }}
 spec:
+  {{- if .Values.service.type }}
+  type: {{ .Values.service.type }}
+  {{- end }}
   ports:
     - port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.port }}
+      {{- if .Values.service.nodePort }}
+      nodePort: {{ .Values.service.nodePort }}
+      {{- end }}
   selector:
     {{- include "sm-proxy.selectorLabels" (merge (dict "deploy" $active) .) | nindent 4 }}
 {{- if .Values.proxyCache.enabled }}

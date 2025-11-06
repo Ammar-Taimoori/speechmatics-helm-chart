@@ -66,6 +66,8 @@ ingress:
 
 service:
   port: 8080
+  type: NodePort
+  nodePort: 30605
 
 # serviceAccountName: my-service-account
 
