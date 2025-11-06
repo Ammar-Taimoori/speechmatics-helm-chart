@@ -1,0 +1,21 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sm-flow.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-flow.labels" . | nindent 4 }}
+  annotations:
+    {{- include "sm-flow.annotations" . | nindent 4 }}
+    {{- with .Values.service.annotations }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ports:
+  - port: 3000
+    protocol: TCP
+    targetPort: 3000
+  selector:
+    {{- include "sm-flow.selectorLabels" . | nindent 4 }}
+  type: {{ .Values.service.type }}

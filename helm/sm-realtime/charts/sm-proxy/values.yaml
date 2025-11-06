@@ -1,0 +1,365 @@
+global:
+  proxy:
+    image:
+      # -- Registry to use for transcriber containers
+      registry: speechmaticsproduction.azurecr.io
+
+      # -- tag will default to .Chart.AppVersion
+      # tag: ""
+
+  resourceManager:
+    # -- URL of resource manager instance
+    url: http://resource-manager:8080
+
+strategy:
+  rollingUpdate:
+    maxSurge: 25%
+    maxUnavailable: 25%
+  type: RollingUpdate
+
+affinity: {}
+requiredDuringSchedulingStrategy: false
+
+dnsPolicy: ClusterFirst
+restartPolicy: Always
+terminationGracePeriodSeconds: 86400
+
+ingress:
+  # -- Enable ingress for proxy service
+  enabled: false
+  ingressClassName: nginx
+
+  # -- Path for ASR requests
+  path: /v{1}(?:[0-9]*)(?:/[a-z]{1,3}(?:_[a-z_]{0,22})?)?/?$
+
+  # -- Enable TLS for ingress
+  tls:
+    secretName: tls-secret
+
+  # -- Annotations for main proxy ingress
+  annotations: {}
+
+  # -- Config for misc (/) ingress
+  misc:
+    annotations: {}
+
+  # -- Config for health (/v1/health) ingress
+  health:
+    annotations: {}
+
+  flow:
+     # -- Enable flow path (/v1/flow) in ingress
+    enabled: false
+    path: /v{1}(?:[0-9]*)(?:/flow?)/?$
+
+    livekit:
+      # -- Enable flow livekit path (/v1/flow/livekit) in ingress
+      enabled: false
+      path: /v{1}(?:[0-9]*)(?:/flow/livekit?)/?$
+      annotations: {}
+    
+    additionalHost:
+      # -- Enable additional host info for flow ingress
+      enabled: false
+      # url: ""
+      tlsSecretName: tls-secret-flow
+
+service:
+  port: 8080
+
+# serviceAccountName: my-service-account
+
+proxy:
+  # -- These values will take precedence over the global.proxy values if provided.
+  image:
+    repository: proxy-service
+    # tag: ""
+
+  containerPort: 8080
+
+  # -- Base path for ASR requests; empty string will default to /v1 path in proxy
+  asrRequestBasePath: ""
+
+  # Configure DNS SRV lookup
+  dns:
+    enabled: true
+    service: devrtneu
+    name: dev-rt-neu-a.rt.speechmatics.com
+
+  # Support multiple proxy deployments to switch traffic between
+  deployments:
+    a:
+      active: true
+      image: {}
+    #   image:
+    #     tag: 1.2.3
+    # b:
+    #   active: true
+    #   additionalEnv:
+    #     - name: PROXY_B_ENV_VAR
+    #       value: test
+    #   additionalVolumeMounts: []
+    #   additionalVolumes: []
+    #   resources:
+    #     requests:
+    #       cpu: 500m
+    #       memory: 3Gi
+
+  # additionalEnv:
+  #   - name: PROXY_2_UPSTREAM_CONN_TIMEOUT_MS
+  #     value: "2"
+
+  livenessProbe:
+    failureThreshold: 3
+    httpGet:
+      path: /live
+      port: 8080
+      scheme: HTTP
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 15
+
+  readinessProbe:
+    failureThreshold: 3
+    httpGet:
+      path: /ready
+      port: 8080
+      scheme: HTTP
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 15
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 2Gi
+
+  config:
+    # -- Type of worker connection supported by proxy service; one of either local, remote or hybrid
+    workerConnectionType: hybrid
+
+    # -- Hostname:Port for local runtime; used for local worker connections
+    localRuntimeHostname: ""
+
+    # -- Allow proxy service to accept insecure websocket requests
+    useInsecureWebsockets: false
+
+    # -- Enable on-premise mode for proxy service
+    isOnPrem: false
+
+    auth:
+      # -- Enable authentication check in proxy service
+      enabled: false
+
+    customDictionaryCapture:
+      # -- Enable custom dictionary capture in proxy service
+      enabled: false
+
+    deadlines:
+      # -- Enable session deadlines in proxy service
+      enabled: false
+
+      # -- Configure zombie session deadlines
+      zombie:
+        deadline_duration: 1h
+        warning_interval: 5m
+        warning_count: 3
+        log_only: true
+
+      # -- Configure max duration deadlines
+      maxDuration:
+        deadline_duration: 48h
+        warning_interval: 15m
+        warning_count: 3
+        log_only: true
+
+    quotaCaching:
+      # -- Enable quota caching in proxy service
+      enabled: false
+      minDecrementDurationSec: 10
+      queryRetryCount: 2
+      queryRetryIntervalSec: 1
+      queryTimeoutMilliSec: 250
+
+    # -- Define legacy template to lang/domain mapping
+    # flowTemplateInfo: |
+    #   {
+    #     "flow-service-assistant-amelia": {"language": "en", "agent_id": "9ce2151d-c36d-4f10-a9c3-47a60b0bdbbe"},
+    #     "flow-service-assistant-humphrey": {"language": "en", "agent_id": "3c549f04-7066-4ec9-af4f-4899f60af12d"},
+    #     "flow-service-assistant-andres": {"language": "es", "domain": "bilingual-en", "agent_id": "2493826f-7513-4cc3-b734-8aa9542972e5"}
+    #   }
+
+    # -- Additional configuration for proxy service
+    additionalConfig: {}
+      # SM_DUMMY_PROXY_ENV: "dummy-value"
+
+  customDict:
+    # -- Enable custom dictionary configMap in proxy service
+    enabled: false
+    # -- Data to be added in custom dictionary configMap
+    data: {}
+
+  additionalPodLabels: {}
+  additionalVolumeMounts: []
+
+additionalVolumes: []
+
+# -- Configure proxy service to use a specific priority class
+priorityClassName : ""
+
+# Configure agent API information to fetch Flow agents
+agentAPI:
+  # -- Enable Flow agents API loading in proxy service  
+  enabled: false
+  # -- Use remote server (management platform) for fetching agents
+  useRemote: true
+  # -- Remote server URL to fetch agents from
+  remoteURL: ""
+  # -- Secret data for configuring remote URL credentials
+  secretData: []
+    # Example using external-secrets
+    # - secretKey: flow-mp-api-internal-password
+    #   remoteRef:
+    #     key: flow-mp-api-internal-password
+
+  # -- Use local file system for fetching agents
+  useLocal: false
+  # -- Path in container to mount local agents
+  localPath: /config/agents
+
+  configMap:
+    # -- Use configMap to mount agents in path defined in agentAPI.localPath
+    enabled: false
+    # -- Map of agents with key as agent filename and value as agent content
+    data: {}
+
+proxyCache:
+  enabled: false
+  replicas: 1
+
+  # -- These values will take precedence over the global.proxy values if provided.
+  image:
+    repository: cache-sidecar
+    # tag: ""
+
+  containerPort: 8080
+
+  service:
+    port: 6379
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 50Mi
+
+  redis:
+    # -- Whether proxy-cache redis should be deployed as a container, or talk to an external redis. Provide
+    external: false
+
+    # -- Secret data to use to get redis connection URL
+    # This will be ignored if external is false (will just use local sidecar container)
+    data: {}
+
+    image:
+      repository: redis
+      tag: 7.2.4
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 50Mi
+
+discoveryApi:
+  configMapName: discovery-api-features
+  key: features
+
+# Override the resource manager url, this will default to the release name
+resourceManager:
+  # Read RM configuration from configMap
+  configMap:
+    enabled: false
+
+# -- Enable proxy settings through configMap
+config:
+  enabled: true
+
+# configure storage for proxy client config
+storage:
+  enabled: true
+  # Override secret name used to read storage info from
+  # Secret Requires keys for storageaccountname and storageaccountkey
+  # secretName:
+
+  data:
+    []
+    # Example using external-secrets
+    # - secretKey: storageaccountname
+    #   remoteRef:
+    #     key: log-storage-account-name
+    # - secretKey: storageaccountkey
+    #   remoteRef:
+    #     key: log-storage-account-key
+
+# Config for eventhub connection info
+events:
+  enabled: true
+  # Override secret name used to read eventhub info from
+  # Secret Requires keys for conn-string and endpoint
+  # secretName:
+
+  # Data to be set in secret
+  data:
+    []
+    # Example using external-secrets
+    # - secretKey: conn-string
+    #   remoteRef:
+    #     key: eventhub-conn-string
+    # - secretKey: storage-account-key
+    #   remoteRef:
+    #     key: eventhub-storage-account-key
+    # - secretKey: endpoint
+    #   remoteRef:
+    #     key: eventhub-endpoint
+
+# Config for database connection info
+database:
+  enabled: true
+  # Override secret name used to read database info from
+  # Secret Requires keys for conn-string
+  createSecret: false
+  # secretName:
+
+  # Data to be set in secret
+  data:
+    []
+    # Example using external-secrets
+    # - secretKey: conn_string
+    #   remoteRef:
+    #     key: customer-db-connection-info
+
+livekit:
+  # -- Enable livekit in proxy service
+  enabled: false
+
+  # -- Data to be set in livekit secret
+  data:
+    []
+    # Example using external-secrets
+    # - secretKey: livekit-url
+    #   remoteRef:
+    #     key: livekit-url
+    # - secretKey: livekit-api-key
+    #   remoteRef:
+    #     key: livekit-api-key
+    # - secretKey: livekit-api-secret 
+    #   remoteRef:
+    #     key: livekit-api-secret 
+
+externalSecrets:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1

@@ -1,0 +1,45 @@
+{{- if (and .Values.internalApp.enabled .Values.ingress.enabled) }}
+{{/*
+TODO: api ingress should be cleaned up once the skeleton app usage is removed from flow-service
+*/}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  {{- with .Values.ingress.api.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.ingress.api.labels }}
+  labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  name: {{ include "sm-flow.fullname" . }}-api
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- with .Values.ingress.ingressClassName }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  rules:
+    - host: "{{ default (printf "flow-%s.%s" (include "sm-flow.fullname" .) .Values.ingress.zone) .Values.ingress.api.host }}"
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "sm-flow.fullname" . }}
+                port:
+                  number: 3000
+          - path: /api
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "sm-flow.fullname" . }}
+                port:
+                  number: 3000
+  tls:
+    - hosts:
+        - "*.{{ .Values.ingress.zone }}"
+      secretName: {{ .Values.ingress.tlsSecretName }}
+{{- end }}

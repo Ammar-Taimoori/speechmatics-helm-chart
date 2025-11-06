@@ -1,0 +1,26 @@
+{{- if .Values.pdb.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: "{{ include "sm-resource-manager.fullname" . }}"
+  namespace: {{ .Release.Namespace }}
+spec:
+  minAvailable: {{ default 1 .Values.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "sm-resource-manager.selectorLabels" (merge (dict "app" "resource-manager") .) | nindent 6 }}
+{{- end }}
+{{- if .Values.sessionGroups.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: "{{ include "sm-resource-manager.fullname" . }}-safe-to-evict"
+  namespace: {{ .Release.Namespace }}
+spec:
+  maxUnavailable: 0%
+  selector:
+    matchLabels:
+      speechmatics.io/safe-to-evict: "false"
+{{- end }}

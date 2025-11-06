@@ -1,0 +1,28 @@
+{{- $name := include "sm-vllm.fullname" . }}
+{{- $serviceName := include "sm-vllm.vllmServiceName" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  {{- /* vLLM service name should not be vllm as it can affect env variables in vLLM container */}}
+  {{- if (eq $serviceName "vllm") }}
+  name: {{ $serviceName }}-svc
+  {{- else }}
+  name: {{ $serviceName }}
+  {{- end }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "sm-vllm.annotations" . | nindent 4 }}
+    {{- with .Values.service.annotations }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  labels:
+    {{- include "sm-vllm.labels" (merge (dict "app" $name) .) | nindent 4 }}
+spec:
+  ports:
+    - port: {{ default .Values.service.port .Values.global.flow.vllm.service.port }}
+      protocol: TCP
+      targetPort: http
+  selector:
+    {{- include "sm-vllm.selectorLabels" (merge (dict "app" $name) .) | nindent 4 }}
+  type: {{ .Values.service.type }}

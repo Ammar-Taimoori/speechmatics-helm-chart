@@ -1,0 +1,402 @@
+{{- if $.Values.transcriber.nameOverride }}
+  {{- if (gt (len (uniq (concat .Values.transcriber.languages.cpuLanguages .Values.transcriber.languages.gpuLanguages .Values.global.transcriber.languages))) 1) }}
+    {{- fail "Values.transcriber.nameOverride can only be used when a single transcriber is being deployed" }}
+  {{- end }}
+{{- end }}
+{{- $name := (include "sm-transcriber.fullname" .) }}
+{{- $kube129 := (semverCompare ">=1.29.0" $.Capabilities.KubeVersion.GitVersion) }}
+{{- if not (default .Values.global.sessionGroups.enabled .Values.sessionGroups.enabled) }}
+{{- $mode := required "Please specify a transcriber mode" .Values.transcriber.mode }}
+{{- range $lang := uniq (concat .Values.transcriber.languages.cpuLanguages .Values.transcriber.languages.gpuLanguages .Values.global.transcriber.languages) }}
+{{- $cleaned_lang := (  $lang | replace "_" "-" ) }}
+{{- $imageIdentifier := dict "language" (printf "-%s" $lang) }}
+{{- $maxConcurrentConnections := (get $.Values.transcriber.languages.overrides.maxConcurrentConnections $lang | default $.Values.transcriber.maxConcurrentConnections.value) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $.Values.transcriber.nameOverride | default (printf "%s-%s" $name $cleaned_lang) }}
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    {{- with $.Values.transcriber.additionalAnnotations }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  labels:
+    lang: {{ $lang | quote }}
+    mode: {{ $mode }}
+    {{- include "sm-transcriber.labels" $ | nindent 4 }}
+    {{- with $.Values.transcriber.additionalLabels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if (get $.Values.transcriber.languages.overrides.autoscaling $lang) }}
+  replicas: {{ (get $.Values.transcriber.languages.overrides.autoscaling $lang).minReplicas }}
+  {{- else }}
+  replicas: {{ $.Values.transcriber.autoscaling.replicas.minReplicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: {{ $.Values.transcriber.nameOverride | default (printf "%s-%s" $name $cleaned_lang) }}
+  template:
+    metadata:
+      annotations:
+        speechmatics.io/component: "{{ $mode }}-asr-transcriber-{{ $lang }}"
+        {{- with $.Values.transcriber.additionalPodAnnotations }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        app: {{ $.Values.transcriber.nameOverride | default (printf "%s-%s" $name $cleaned_lang) }}
+        lang: {{ $lang | quote }}
+        {{- with $.Values.transcriber.additionalPodLabels }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with (default $.Values.global.imagePullSecrets $.Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: {{ $mode }}-asr-transcriber
+        args:
+          - --json
+        env:
+          {{- if $.Values.eats.enabled }}
+          {{- if $.Values.eats.configMap.enabled }}
+          - name: SM_EATS_URL
+            valueFrom:
+              configMapKeyRef:
+                name: {{ $.Values.eats.configMap.name }}
+                key: sm_eats_url
+          - name: SM_ENABLE_USAGE_REPORTING
+            valueFrom:
+              configMapKeyRef:
+                name: {{ $.Values.eats.configMap.name }}
+                key: sm_enable_usage_reporting
+          {{- else }}
+          {{- with $.Values.eats.url }}
+          - name: SM_EATS_URL
+            value: {{ . }}
+          {{- end }}
+          - name: SM_ENABLE_USAGE_REPORTING
+            value: {{ $.Values.eats.enableUsageReporting | quote }}
+          {{- end }}
+          - name: SM_EATS_SECURE
+            value: {{ $.Values.eats.secure | quote }}
+          {{- else}}
+          - name: SM_ENABLE_USAGE_REPORTING
+            value: "false"
+          {{- end }}
+          {{- if $.Values.transcriber.cdCache.enabled }}
+          - name: SM_CUSTOM_DICTIONARY_CACHE_TYPE
+            value: {{ $.Values.transcriber.cdCache.type }}
+          {{- if eq $.Values.transcriber.cdCache.type "http"}}
+          - name: SM_CUSTOM_DICTIONARY_CACHE_HTTP_ENDPOINT
+            value: "{{ $.Values.resourceManager.url }}/v1/cd-cache"
+          - name: SM_CUSTOM_DICTIONARY_CACHE_FALLBACK_ON_CACHE_FAILURE
+            value: "true"
+          - name: SM_CUSTOM_DICTIONARY_CACHE_HTTP_ASYNC
+            value: "true"
+          {{- else }}
+          - name: SM_CUSTOM_DICTIONARY_CACHE_DIR_MAX_SIZE
+            value: {{ default "-1" $.Values.transcriber.cdCache.maxDirSize | quote }}
+          - name: SM_CUSTOM_DICTIONARY_CACHE_DIR_MAX_ENTRIES
+            value: {{ default "-1" $.Values.transcriber.cdCache.maxDirEntries | quote }}
+          - name: SM_CUSTOM_DICTIONARY_CACHE_ENTRY_MAX_SIZE
+            value: {{ default "-1" $.Values.transcriber.cdCache.maxEntrySize | quote }}
+          {{- end }}
+          {{- end }}
+          {{- if $.Values.translation.enabled }}
+          - name: SM_TRANSLATION_ENDPOINT
+            value: {{ $.Values.translation.url }}
+          {{- end }}
+          {{- if $.Values.sessionTransfer.enabled }}
+          - name: SM_DO_SESSION_TRANSFER
+            value: {{ $.Values.sessionTransfer.enabled | quote }}
+          {{- end }}
+          {{- if $.Values.transcriber.maxConcurrentConnections.configMap.enabled }}
+          - name: SM_MAX_CONCURRENT_CONNECTIONS
+            valueFrom:
+              configMapKeyRef:
+                name: {{ $.Values.transcriber.maxConcurrentConnections.configMap.name }}
+                key: sm_max_concurrent_connections
+          {{- else }}
+          - name: SM_MAX_CONCURRENT_CONNECTIONS
+            value: {{ $maxConcurrentConnections | quote }}
+          {{- end }}
+          {{- if $.Values.transcriber.otel.enabled }}
+          - name: HOST_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          - name: OTEL_EXPORTER_ENDPOINT
+            value: "http://$(HOST_IP):4317"
+          {{- end }}
+          {{- if $.Values.transcriber.speakerId.enabled }}
+          - name: SM_SPEAKERS_PUBLIC_KEY
+            valueFrom:
+              secretKeyRef:
+                key: public-key
+                name: "{{ $name }}-speaker-id"
+          - name: SM_SPEAKERS_PRIVATE_KEY
+            valueFrom:
+              secretKeyRef:
+                key: private-key
+                name: "{{ $name }}-speaker-id"
+            {{- end }}
+          {{- if $.Values.global.flow.flowUseLocalTranscriber }}
+          - name: SM_DISABLE_API_VALIDATION
+            value: "true"
+          {{- end }}
+          {{- if (not (has $lang $.Values.transcriber.languages.cpuLanguages)) }}
+          - name: SM_ENHANCED_INFERENCE_ENDPOINT
+            value: 0.0.0.0:8008
+          - name: SM_INFERENCE_ENDPOINT
+            value: 0.0.0.0:8008
+          - name: SM_INFERENCE_ENDPOINT_RETRY_TIMEOUT
+            value: "20"
+          {{- with $.Values.transcriber.processors.gpu.env }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
+          {{- else }}
+          {{- with $.Values.transcriber.processors.cpu.env }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
+          {{- end }}
+          {{- with $.Values.transcriber.env }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
+        image: {{ include "sm-transcriber.image" (merge $imageIdentifier (dict "Chart" $.Chart "global" $.Values.global.transcriber "component" $.Values.transcriber)) | quote }}
+        {{- with $.Values.transcriber.imagePullPolicy }}
+        imagePullPolicy: {{ . }}
+        {{- end }}
+        {{- with $.Values.transcriber.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with $.Values.transcriber.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with $.Values.transcriber.startupProbe }}
+        startupProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        ports:
+        - containerPort: 9000
+          name: ws
+          protocol: TCP
+        - containerPort: 8001
+          name: health-port
+          protocol: TCP
+        {{- with (include "sm-transcriber.resources" (dict "lang" $lang "config" $.Values)) }}
+        resources:
+          {{- . | nindent 10 }}
+        {{- end }}
+        volumeMounts:
+          - mountPath: /license.json
+            name: license
+            readOnly: true
+            subPath: license.json
+          {{- if $.Values.transcriber.cdCache.enabled }}
+          {{- with $.Values.transcriber.cdCache.volume }}
+          - mountPath: /cache
+            name: cache
+            readOnly: false
+          {{- end }}
+          {{- end }}
+          {{- with $.Values.transcriber.volumeMounts }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
+      {{- if (eq "rt" $mode) }}
+      {{- if $.Values.readinessTracker.enabled }}
+      - name: readiness-tracker
+        env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: status.podIP
+          - name: SM_DEPLOYMENT_NAME
+            value: {{ $.Values.transcriber.nameOverride | default (printf "%s-%s" $name $cleaned_lang) }}
+          - name: SM_NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: SM_RESOURCE_MANAGER_URL
+          {{- if $.Values.resourceManager.configMap.enabled }}
+            valueFrom:
+              configMapKeyRef:
+                name: {{ default $.Release.Name $.Values.resourceManager.configMap.name }}
+                key: resource_manager_url
+          {{- else }}
+            value: {{ default $.Values.global.resourceManager.url $.Values.resourceManager.url }}
+          {{- end }}
+          - name: SM_RESOURCE_MANAGER_WORKER_STATE_UPDATE_ENDPOINT
+            value: /v1/transcribers/status
+          - name: READINESS_TRACKER_IDLE_STATE_UPDATE_DELAY_SECS
+            value: "0"
+          - name: READINESS_TRACKER_HEALTH_CHECK_PORT
+            value: "8002"
+          {{- if $.Values.readinessTracker.languageOverride }}
+          - name: LANGUAGE_FEATURE
+            value: {{ $.Values.readinessTracker.languageOverride | quote }}
+          {{- else }}
+          - name: LANGUAGE_FEATURE
+            value: {{ (split "-" $lang)._0 | quote }}
+          {{- end }}
+          - name: SM_RESTART_TRANSCRIBER_AFTER_N_SESSIONS
+            value: {{ $.Values.readinessTracker.restartAfterNSessions | quote }}
+          - name: PRE_WARM_ENABLED
+            value: {{ and $.Values.readinessTracker.preWarm.enabled $kube129 | quote }}
+          - name: PRE_WARM_USE_AUDIO
+            value: {{ $.Values.readinessTracker.preWarm.useAudio | quote }}
+          - name: PRE_WARM_EVERY_SESSION
+            value: {{ $.Values.readinessTracker.preWarm.everySession | quote }}
+          - name: PRE_WARM_OPERATING_POINT
+            value: {{ default "enhanced" $.Values.readinessTracker.preWarm.operatingPoint }}
+          - name: PRE_WARM_CONTRACT_ID
+            value: {{ $.Values.readinessTracker.preWarm.contractId | quote }}
+          - name: PRE_WARM_ONLY
+            value: {{ $.Values.readinessTracker.preWarm.preWarmOnly | quote }}
+          {{- /* Needed for transcribers to report/decrement usage when running outside of default namespace */}}
+          - name: SM_K8S_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          {{- with $.Values.readinessTracker.env }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
+        image: {{ include "sm-transcriber.image" (dict "Chart" $.Chart "global" $.Values.global.resourceManager "component" $.Values.readinessTracker) | quote }}
+        {{- with $.Values.readinessTracker.imagePullPolicy }}
+        imagePullPolicy: {{ . }}
+        {{- end }}
+        {{- with $.Values.readinessTracker.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with $.Values.readinessTracker.startupProbe }}
+        startupProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        ports:
+          - containerPort: 8002
+            name: check-port
+            protocol: TCP
+          - containerPort: 8022
+            {{- /* Do not change the port name as it is expected by repopulation service */}}
+            name: register-repop
+            protocol: TCP
+          - containerPort: 8023
+            {{- /* Do not change the port name as it is expected by repopulation service */}}
+            name: rt-repop
+            protocol: TCP
+        {{- with $.Values.readinessTracker.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- end }}
+      {{- if (and (not (has $lang $.Values.transcriber.languages.cpuLanguages)) $.Values.workerProxy.enabled) }}
+      {{/* Only run worker-proxy as an init container when running k8s version >= 1.29 */}}
+      {{- if $kube129 }}
+      initContainers:
+      {{- end }}
+      - name: worker-proxy
+        env:
+          - name: SM_DEPLOYMENT_NAME
+            value: {{ $.Values.transcriber.nameOverride | default (printf "%s-%s" $name $cleaned_lang) }}
+          - name: SM_NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: LANGUAGE_FEATURE
+            value: {{ (split "-" $lang)._0 | quote }}
+          - name: SM_TOKEN_STORE_URL
+          {{- if $.Values.resourceManager.configMap.enabled }}
+            valueFrom:
+              configMapKeyRef:
+                name: {{ default $.Release.Name $.Values.resourceManager.configMap.name }}
+                key: resource_manager_url
+          {{- else }}
+            value: {{ default $.Values.global.resourceManager.url $.Values.resourceManager.url }}
+          {{- end }}
+          - name: SM_MODELS_SHARED_BY_LANGUAGES_PREFIXES
+            value: "body,diar,audio_event_detection"
+          {{- /* Support ability to optionally override the transcriber version used for IC, if not use image tag version */}}
+          {{- if (not (has "TRANSCRIBER_VERSION" (include "sm-transcriber.envVarNames" $.Values.workerProxy.env | list))) }}
+          - name: TRANSCRIBER_VERSION
+            value: {{ (include "sm-transcriber.appVersion" $) | quote }}
+          {{- end }}
+          {{/* Enable check for capacity on Start when prewarm is enabled - only do this when worker-proxy is running as an init container */}}
+          {{- if $kube129 }}
+          - name: SM_CHECK_FOR_CAPACITY_ON_START
+            value: {{ default ($.Values.readinessTracker.preWarm.enabled | quote) ($.Values.workerProxy.checkForCapacityOnStart | quote) }}
+          - name: SM_CHECK_FOR_CAPACITY_ON_START_OPERATING_POINT
+            value: {{ $.Values.readinessTracker.preWarm.operatingPoint | quote }}
+          {{- end }}
+          {{- with $.Values.workerProxy.env }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
+        image: {{ include "sm-transcriber.image" (dict "Chart" $.Chart "global" $.Values.global.resourceManager "component" $.Values.workerProxy) | quote }}
+        {{- with $.Values.workerProxy.imagePullPolicy }}
+        imagePullPolicy: {{ . }}
+        {{- end }}
+        ports:
+          - containerPort: 8024
+            {{- /* Do not change the port name as it is expected by repopulation service */}}
+            name: wp-repop
+            protocol: TCP
+        {{- if $kube129 }}
+        {{- /* Set restartPolicy as Always to run worker-proxy as initContainer sidecar which remain running during the entire life of the pod */}}
+        restartPolicy: Always
+        {{- end }}
+        {{- with $.Values.workerProxy.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with $.Values.workerProxy.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with $.Values.workerProxy.startupProbe }}
+        startupProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+      terminationGracePeriodSeconds: 30
+      {{- with (include "sm-transcriber.nodeSelector" (dict "lang" $lang "config" $.Values)) }}
+      nodeSelector:
+        {{- . | nindent 8 }}
+      {{- end }}
+      {{- with (include "sm-transcriber.tolerations" (dict "lang" $lang "config" $.Values)) }}
+      tolerations:
+        {{- . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ $name }}
+      {{- with $.Values.transcriber.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: license
+          secret:
+            items:
+              - key: license.json
+                path: license.json
+            secretName: {{ default $.Values.global.licensing.secretName $.Values.transcriber.licensing.secretName }}
+        {{- if $.Values.transcriber.cdCache.enabled }}
+        {{- with $.Values.transcriber.cdCache.volume }}
+        - name: cache
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- end }}
+        {{- with $.Values.volumes }}
+          {{- toYaml . | nindent 8 }}
+        {{- end}}
+{{- end }}
+{{- end }}

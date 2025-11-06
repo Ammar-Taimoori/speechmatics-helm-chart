@@ -1,0 +1,186 @@
+---
+global:
+  imagePullSecrets: []
+
+  flow:
+    # -- Global level override for vllm model and service name/port
+    vllm:
+      config:
+        model: ""
+
+      service: {}
+        # serviceName: llm
+        # port: 8000
+
+# -- Image registry and repository to use
+image: vllm/vllm-openai
+
+# -- Number of replicas
+replicas: 1
+
+# -- Container port to expose
+containerPort: 8000
+
+config:
+  # -- Name or path of model to use
+  model: ""
+
+  # -- Number of GPUs to use
+  numGPUs: 1
+
+  # -- Number of tensor parallel replicas; defaults to value from numGPUs if not set
+  # tensorParallelSize: 1
+
+  # -- Model context length
+  # maxModelLength: 2048
+
+  # -- Data type for model weights and activations
+  dtype: auto
+
+  # -- Enable automatic prefix caching
+  enablePrefixCaching: true
+
+  # -- Disable logging requests
+  disableLogRequests: true
+
+  # -- Additional arguments to pass to the VLLM server
+  additionalArgs: {}
+
+# -- Additional annotations to add in deployment
+additionalAnnotations: {}
+# -- Additional labels to add in deployment
+additionalLabels: {}
+
+# -- Additional annotations to add in pod
+additionalPodAnnotations: {}
+
+# -- Additional labels to add in pod
+additionalPodLabels: {}
+
+# -- Environment variables as a list (for valuesFrom)
+envFrom: []
+# -- Additional environment variables as a list (for valuesFrom)
+additionalEnvFrom: []
+# -- Additional environment variables as a map of key-value pairs
+additionalEnv: {}
+
+# -- Termination grace period for the pod
+terminationGracePeriodSeconds: 30
+
+# -- Resource requests and limits for the VLLM server
+resources: {}
+  # -- GPU requirements for VLLM server
+  # limits:
+  #   nvidia.com/gpu: "1"
+
+# -- Liveness probe for the VLLM server
+livenessProbe: {}
+  # httpGet:
+  #   path: /health
+  #   port: 8000
+  # initialDelaySeconds: 180
+  # periodSeconds: 15
+  # successThreshold: 1
+  # failureThreshold: 3
+  # timeoutSeconds: 10
+
+# -- Readiness probe for the VLLM server
+readinessProbe: {}
+  # httpGet:
+  #   path: /health
+  #   port: 8000
+  # initialDelaySeconds: 180
+  # periodSeconds: 15
+  # successThreshold: 1
+  # failureThreshold: 3
+  # timeoutSeconds: 10
+
+# -- Additional volumeMounts to make available on vllm pod
+additionalVolumeMounts: []
+# -- Additional volumes to make available on vllm pod
+additionalVolumes:
+  []
+  # - name: hello
+  #   hostPath: /hello
+
+# nodeSelector: {}
+# tolerations: []
+
+# -- Image pull secrets to use for pulling the image
+imagePullSecrets: []
+
+# -- Allow runAsUser, runAsGroup, fsGroup etc to pass through
+securityContext: {}
+
+podDisruptionBudget:
+  # -- Enable pod disruption budget
+  enabled: false
+  # -- minAvailable for pod disruption budget
+  minAvailable: 1
+
+service:
+  # -- Name override for the vllm service
+  # serviceName: llm
+  # -- Port to expose in the service
+  port: 8000
+  # -- Service type to use
+  type: ClusterIP
+  # -- Service annotations
+  annotations: {}
+
+hfTokenSecret:
+  # -- Create a secret for the Hugging Face token
+  createSecret: false
+  # -- Secret name to use for the Hugging Face token
+  secretName: vllm-secret
+  # -- Base64 encoded Hugging Face token
+  # token: "B64_TOKEN"
+
+# Enable provisioning of secrets using ExternalSecret resources
+externalSecrets:
+  # -- Use external secrets for secrets management
+  enabled: false
+  # -- SecretStore to use for external secrets
+  secretStoreName: akv-secrets
+  # -- SecretStore kind to use for external secrets
+  secretStoreKind: ClusterSecretStore
+  # -- Type of provider for external secrets; such as azure or vault
+  provider: azure
+
+# Storage configuration
+storage:
+  # -- Storage size for the VLLM server persistent volume
+  size: 50Gi
+  # -- Storage class to use for the VLLM server persistent volume
+  storageClassName: default
+  # -- Access modes for the VLLM server persistent volume
+  accessModes:
+    - ReadWriteOnce
+  # -- Volume mode for the VLLM server persistent volume
+  volumeMode: Filesystem
+
+# Ingress configuration
+ingress:
+  # -- Enable ingress for the VLLM server
+  enabled: false
+
+  # -- Ingress annotations
+  annotations: {}
+  # -- Ingress labels
+  labels: {}
+
+  # -- Ingress controller class to use for ingress
+  ingressClassName: nginx
+
+  # -- Zone to use for ingress
+  zone: lab.speechmatics.io
+  tls:
+    # -- Enable TLS in ingress
+    enabled: false
+    # -- TLS secret name to use for ingress
+    secretName: tls-secret-vllm
+
+# Configure datadog scrape annotations
+datadog:
+  # -- Add datadog annotations to pods for monitoring
+  addAnnotations: false

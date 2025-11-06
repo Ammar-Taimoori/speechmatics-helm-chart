@@ -1,0 +1,5 @@
+nginx.ingress.kubernetes.io/configuration-snippet: |+
+  # Adds the request ID header to the response, so the user can see it.
+  more_set_headers "Request-Id: $req_id";
+  proxy_intercept_errors on;
+  error_page 302 = @handle_302_redirect;

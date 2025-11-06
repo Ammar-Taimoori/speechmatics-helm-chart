@@ -1,0 +1,128 @@
+{{- $name := include "sm-vllm.fullname" . }}
+{{- $version := include "sm-vllm.version" . }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "sm-vllm.annotations" . | nindent 4 }}
+    tags.datadoghq.com/vllm-server.service: {{ $name }}
+    tags.datadoghq.com/vllm-server.version: {{ $version }}
+    {{- with .Values.additionalAnnotations }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  labels:
+    {{- include "sm-vllm.labels" (merge (dict "app" $name) .) | nindent 4 }}
+    {{- with .Values.additionalLabels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: {{ .Values.replicas }}
+  {{ if .Values.useRecreateStrategy }}
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "sm-vllm.selectorLabels" (merge (dict "app" $name) .) | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        tags.datadoghq.com/vllm-server.service: {{ $name }}
+        tags.datadoghq.com/vllm-server.version: {{ $version }}
+        {{- if .Values.datadog.addAnnotations }}
+        {{- include "sm-vllm.vllmServerDatadogAnnotations" (dict "containerName" "vllm-server" "name" $name "port" .Values.containerPort) | nindent 8 }}
+        {{- end }}
+        {{- with .Values.additionalPodAnnotations }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "sm-vllm.selectorLabels" (merge (dict "app" $name) .) | nindent 8 }}
+        {{- with .Values.additionalPodLabels }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with (default .Values.global.imagePullSecrets .Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: vllm-server
+        args: {{ include "sm-vllm.params" . | nindent 10 }}
+        env:
+          - name: NVIDIA_REQUIRE_CUDA
+            value: "cuda>=11.6"
+          - name: CUDA_VISIBLE_DEVICES
+            value: "{{ range $i, $e := until (.Values.config.numGPUs | int) }}{{ if $i }},{{ end }}{{ $i }}{{ end }}"
+          - name: HUGGING_FACE_HUB_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.hfTokenSecret.secretName }} 
+                key: hf-token-secret
+            {{- with .Values.envFrom }}
+              {{- toYaml . | nindent 10 }}
+            {{- end }}
+            {{- with .Values.additionalEnvFrom }}
+              {{- toYaml . | nindent 10 }}
+            {{- end }}
+          {{- range $k, $v := .Values.additionalEnv }}
+          - name: {{ $k }}
+            value: {{ $v | quote }}
+          {{- end }}
+        image: {{ printf "%s:%s" .Values.image $version }} 
+        ports:
+          - containerPort: {{ .Values.containerPort }}
+            name: http
+            protocol: TCP
+        {{- with .Values.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        volumeMounts:
+        - mountPath: /root/.cache/huggingface
+          name: cache-volume
+        - name: shm
+          mountPath: /dev/shm
+        {{- with .Values.additionalVolumeMounts }}
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+      {{- range $selector, $value := . }}
+        {{ $selector }}: {{ $value | quote }}
+      {{- end }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.runtimeClassName }}
+      runtimeClassName: {{ . }}
+      {{- end }}
+      volumes:
+      - name: cache-volume
+        persistentVolumeClaim:
+          claimName: {{ printf "%s-cache-pvc" $name }}
+      {{- /* vLLM needs to access the host's shared memory for tensor parallel inference. */}}
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: "2Gi"
+      {{- with .Values.additionalVolumes }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

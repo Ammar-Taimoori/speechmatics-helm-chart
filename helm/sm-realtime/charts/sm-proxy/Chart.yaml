@@ -1,0 +1,5 @@
+apiVersion: v2
+appVersion: 2.8.8-1307675
+description: Run proxy service as an entrypoint to RT runtime backend
+name: sm-proxy
+version: 0.3.17

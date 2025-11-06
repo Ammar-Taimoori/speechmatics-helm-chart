@@ -1,0 +1,22 @@
+{{- $name := include "sm-tts.ttsServiceName" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "sm-tts.annotations" . | nindent 4 }}
+    {{- with .Values.service.annotations }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  labels:
+    {{- include "sm-tts.labels" (merge (dict "app" $name) .) | nindent 4 }}
+spec:
+  ports:
+    - port: {{ .Values.service.port }}
+      protocol: TCP
+      targetPort: http
+  selector:
+    {{- include "sm-tts.selectorLabels" (merge (dict "app" $name) .) | nindent 4 }}
+  type: {{ .Values.service.type }}

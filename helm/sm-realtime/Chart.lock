@@ -1,0 +1,33 @@
+dependencies:
+- name: sm-proxy
+  repository: file://../sm-proxy
+  version: 0.3.17
+- name: sm-resource-manager
+  repository: file://../sm-resource-manager
+  version: 1.7.24
+- name: sm-transcriber
+  repository: file://../sm-transcriber
+  version: 0.7.28
+- name: sm-gpu
+  repository: file://../sm-gpu
+  version: 3.19.13
+- name: sm-gpu
+  repository: file://../sm-gpu
+  version: 3.19.13
+- name: sm-gpu
+  repository: file://../sm-gpu
+  version: 3.19.13
+- name: sm-gpu
+  repository: file://../sm-gpu
+  version: 3.19.13
+- name: sm-gpu
+  repository: file://../sm-gpu
+  version: 3.19.13
+- name: sm-gpu
+  repository: file://../sm-gpu
+  version: 3.19.13
+- name: sm-flow
+  repository: file://../sm-flow
+  version: 0.5.21
+digest: sha256:4cfdfb63429b7777638b5bfee00d761731e650fbf6fe295b8ef7f98fab9f99c7
+generated: "2025-07-18T09:46:56.067612945Z"

@@ -1,0 +1,120 @@
+{{- $name := include "sm-llm-proxy.llmProxyServiceName" . }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "sm-llm-proxy.annotations" . | nindent 4 }}
+    {{- with .Values.additionalAnnotations }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  labels:
+    {{- include "sm-llm-proxy.labels" (merge (dict "app" $name) .) | nindent 4 }}
+    {{- with .Values.additionalLabels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: {{ .Values.replicas }}
+  {{ if .Values.useRecreateStrategy }}
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "sm-llm-proxy.selectorLabels" (merge (dict "app" $name) .) | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.additionalPodAnnotations }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "sm-llm-proxy.selectorLabels" (merge (dict "app" $name) .) | nindent 8 }}
+        {{- with .Values.additionalPodLabels }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with (default .Values.global.imagePullSecrets .Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: llm-proxy
+        env:
+          - name: SM_LLM_PROXY_CONFIG
+            valueFrom:
+              configMapKeyRef:
+                key: llm-proxy-config
+                name: {{ include "sm-llm-proxy.llmProxyConfigmapName" . }}
+          - name: SM_ON_PREM
+            value: {{ .Values.isOnPrem | quote }}
+          - name: MAX_BACKEND_RETRIES
+            value: {{ .Values.maxBackendRetries | quote }}
+          - name: BACKEND_RETRY_INTERVAL_MS
+            value: {{ .Values.backendRetryIntervalMs | quote }}
+          - name: BACKEND_TIMEOUT_SEC
+            value: {{ include "sm-llm-proxy.llmProxyTimeout" . | quote }}
+          - name: BACKEND_RECOVERY_INTERVAL
+            value: {{ .Values.backendRecoveryInterval | quote }}
+          - name: BACKEND_LATENCY_EMA_SMOOTHING_FACTOR
+            value: {{ .Values.backendLatencyEmaSmoothingFactor | quote }}
+          - name: BACKEND_UTILIZATION_THRESHOLD
+            value: {{ .Values.backendUtilizationThreshold | quote }}
+          - name: LATENCY_WEIGHT_FACTOR
+            value: {{ .Values.latencyWeightFactor | quote }}
+          - name: MAX_COOLING_PERIOD_SEC
+            value: {{ .Values.maxCoolingPeriodSec | quote }}
+          - name: RETRY_ALL_LLM_ERRORS
+            value: {{ .Values.retryAllLlmErrors | quote }}
+          - name: LLM_PROXY_SHUTDOWN_GRACE_PERIOD_SEC
+            value: {{ .Values.llmProxyShutdownGracePeriodSec | quote }}
+            {{- with .Values.envFrom }}
+              {{- toYaml . | nindent 10 }}
+            {{- end }}
+            {{- with .Values.additionalEnvFrom }}
+              {{- toYaml . | nindent 10 }}
+            {{- end }}
+          {{- range $k, $v := .Values.additionalEnv }}
+          - name: {{ $k }}
+            value: {{ $v | quote }}
+          {{- end }}
+        image: {{ include "sm-llm-proxy.image" (dict "Chart" .Chart "global" .Values.global.resourceManager "component" .Values) | quote }} 
+        ports:
+          - containerPort: {{ .Values.containerPort }}
+            name: llm-proxy
+            protocol: TCP
+        {{- with .Values.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.additionalVolumeMounts }}
+        volumeMounts:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      terminationGracePeriodSeconds: {{ add .Values.llmProxyShutdownGracePeriodSec 10 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.additionalVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

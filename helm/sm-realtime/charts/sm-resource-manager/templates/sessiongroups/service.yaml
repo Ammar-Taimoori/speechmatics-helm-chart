@@ -1,0 +1,18 @@
+{{- if .Values.sessionGroups.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sm-resource-manager.sessiongroups-controller.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-resource-manager.labels" . | nindent 4 }}
+  annotations:
+    {{- include "sm-resource-manager.annotations" . | nindent 4 }}
+spec:
+  ports:
+    - port: 8025
+      targetPort: 8025
+  selector:
+    control-plane: {{ include "sm-resource-manager.sessiongroups-controller.fullname" . }}
+{{- end }}

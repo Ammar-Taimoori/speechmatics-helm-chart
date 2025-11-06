@@ -1,0 +1,86 @@
+---
+flow:
+  enabled: true
+
+  vllm:
+    config:
+      model: meta-llama/Llama-3.2-3B-Instruct
+
+  llmProxy:
+    config:
+      model_list:
+        - model_name: vllm
+          llm_params:
+            url: http://llm:8000/v1/chat/completions
+            model: meta-llama/Llama-3.2-3B-Instruct
+
+  config:
+    llm:
+      llmProxy:
+        modelGroup: vllm
+
+proxy:
+  agentAPI:
+    configMap:
+      data:
+        32f4725b-fde5-4521-a57c-e899e245d0b0_latest.json: |
+          {
+            "agent_id": "32f4725b-fde5-4521-a57c-e899e245d0b0",
+            "name": "Jean",
+            "version": "latest",
+            "tts_config": {
+              "preset": "SpeechmaticsTTS:american-female"
+            },
+            "asr_config": {
+              "language": "en",
+              "additional_vocab": [
+                  {
+                      "content": "Jean",
+                      "sounds_like": [
+                          "Gene"
+                      ]
+                  }
+              ]
+            },
+            "custom_llm_config": [
+              {
+                "url": "https://api.openai.com/v1/chat/completions",
+                "model": "gpt-4o-2024-08-06",
+                "api_key": "**** api_key_here *****",
+                "headers": {
+                  "Content-Type": "application/json"
+                }
+              }
+            ],
+            "instructions": {
+              "prompt": "**{persona}**.\n\n# Style of responses:\n{style}\n{context}\n",
+              "default_template_variables": {
+                "persona": "You are an American female called Jean",
+                "style": "Be polite and always mirror the user's tone of voice and seriousness.",
+                "context": "Create an engaging and natural conversation with the user."
+              },
+              "first_message": "Hello, how can I help?",
+              "agent_speaks_first": true
+            }
+          }
+
+        32f4725b-fde5-4521-a57c-e899e245d0b0_v1.json:
+          agent_id: 32f4725b-fde5-4521-a57c-e899e245d0b0
+          name: Scott
+          version: v1
+          tts_config:
+            preset: SpeechmaticsTTS:american-male
+          asr_config:
+            language: en
+            additional_vocab:
+            - content: Scott
+              sounds_like:
+              - Scot
+          instructions:
+            prompt: "**{persona}**.\n\n# Style of responses:\n{style}\n{context}\n"
+            default_template_variables:
+              persona: You are an American male called Scott
+              style: Be polite and always mirror the user's tone of voice and seriousness.
+              context: Create an engaging and natural conversation with the user.
+            first_message: Hello, how can I help?
+            agent_speaks_first: true

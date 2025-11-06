@@ -1,0 +1,21 @@
+{{- if (and (or .Values.inferenceSidecar.registerFeatures (get .Values.inferenceSidecar.env "REGISTER_FEATURES")) (eq .Values.tritonServer.mode "batch")) }}
+{{- if and (has .Values.tritonServer.recipe (list "enhanced-recipe1" "enhanced-recipe2" "enhanced-recipe3" "enhanced-recipe4" "standard-all" "custom")) (hasKey .Values.inferenceSidecar.gpuFlowControlConfig .Values.tritonServer.recipe) }}
+{{- $queue := (get .Values.inferenceSidecar.gpuFlowControlConfig .Values.tritonServer.recipe) }}
+{{- if not (hasKey $queue "queue_stage_name") }}
+  {{- fail (printf "Please specify queue_stage_name for %s recipe" .Values.tritonServer.recipe) }}
+{{- end }}
+{{- $version := dict "version" (include "sm-gpu.registered_features_version" .) }}
+{{- $infConfig := ((hasKey .Values.inferenceSidecar.env "REGISTER_FEATURES") | ternary ((get .Values.inferenceSidecar.env "REGISTER_FEATURES") | fromJson) (include "sm-gpu.models_for_recipe" . | fromYaml)) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sm-gpu.fullname" . }}
+  labels:
+    speechmatics.io/gpu-flow-control: "true"
+data:
+  flow_control_config: |
+    {{- (merge (dict "inference_config" (merge $infConfig $version)) $queue) | toJson | nindent 4 }}
+{{- else }}
+  {{- fail "Please specify recipe as one of standard-all, enhanced-recipe1, enhanced-recipe2, enhanced-recipe3, enhanced-recipe4 or custom" }}
+{{- end }}
+{{- end }}

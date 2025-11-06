@@ -1,0 +1,27 @@
+Thank you for installing {{ .Chart.Name }} from Speechmatics.
+
+Your release is named {{ .Release.Name }}.
+
+Your deployment supports the following languages: {{ join "," .Values.global.transcriber.languages }}
+
+You can view the transcribers and inference servers with:
+
+  $ kubectl get sessiongroups
+
+Once transcribers and inference servers are ready, you can start a session with:
+
+  $ speechmatics rt transcribe --url wss://{{ .Values.proxy.ingress.url }}/v1 --lang {{ index .Values.global.transcriber.languages 0 }} --operating-point {{ .Values.inferenceServerEnhancedRecipe1.tritonServer.operatingPoint }} $AUDIO_FILE
+
+{{- if .Values.flow.enabled }}
+
+You can view flow and TTS servers with:
+
+  $ kubectl get sessiongroups
+
+Once all the servers are ready, you can start a conversation with:
+
+  $ speechmatics-flow --url wss://{{ .Values.proxy.ingress.url }}/v1/flow --assistant <agent_uuid:version>
+
+{{- end }}
+
+For any other support for running Speechmatics containers, see the documentation: https://docs.speechmatics.com/on-prem/kubernetes

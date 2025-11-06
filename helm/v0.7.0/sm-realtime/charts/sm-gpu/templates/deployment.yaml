@@ -1,0 +1,246 @@
+{{- if not (default .Values.global.sessionGroups.enabled .Values.sessionGroups.enabled) }}
+{{- $mode := (required "Please specify triton server mode (can be either batch, rt or translation)" .Values.tritonServer.mode) }}
+{{- $op := .Values.tritonServer.operatingPoint }}
+{{- $recipe := .Values.tritonServer.recipe }}
+{{- $version := (include "sm-gpu.appVersion" .) }}
+{{- $name := include "sm-gpu.fullname" . }}
+{{- $containerName := include "sm-gpu.containerName" (dict "mode" $mode) }}
+{{- $inferenceSidecarPort := default 8008 .Values.inferenceSidecar.port }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "sm-gpu.annotations" . | nindent 4 }}
+    tags.datadoghq.com/triton-server.service: {{ $name }}
+    tags.datadoghq.com/triton-server.version: {{ $version | trunc 63 | quote }}
+    {{- if ne "translation" $mode }}
+    tags.datadoghq.com/triton-server.recipe: {{ $recipe | quote }}
+    {{- end }}
+    {{- with .Values.additionalAnnotations }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if .Values.tritonServer.autoscaling.enabled }}
+    speechmatics.io/scaling.config: |
+    {{- include "sm-gpu.processScalingConfig" . | nindent 6 }}
+    speechmatics.io/scaling.enabled: "true"
+    {{- end }}
+  labels:
+    mode: {{ $mode }}
+    {{- include "sm-gpu.labels" . | nindent 4 }}
+    {{- with .Values.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.tritonServer.autoscaling.enabled }}
+  replicas: {{ .Values.tritonServer.autoscaling.scalingConfig.min_replicas }}
+  {{- else }}
+  replicas: {{ .Values.tritonServer.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "sm-gpu.selectorLabels" . | nindent 6 }}
+  {{ if .Values.tritonServer.useRecreateStrategy }}
+  strategy:
+    type: Recreate
+  {{- end }}
+  template:
+    metadata:
+      annotations:
+        tags.datadoghq.com/triton-server.service: {{ $name }}
+        tags.datadoghq.com/triton-server.version: {{ $version | trunc 63 | quote }}
+        {{- if ne "translation" $mode }}
+        tags.datadoghq.com/triton-server.recipe: {{ $recipe | quote }}
+        {{- end }}
+        {{- with .Values.tritonServer.additionalAnnotations }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.datadog.addAnnotations }}
+        {{- include "sm-gpu.tritonServerDatadogAnnotations" (dict "containerName" $containerName "name" $name "metrics" .Values.datadog.tritonServerMetrics) | nindent 8 }}
+        {{- if .Values.inferenceSidecar.enabled }}
+        {{- include "sm-gpu.inferenceSidecarDatadogAnnotations" (dict "port" $inferenceSidecarPort "metrics" .Values.datadog.inferenceSidecarMetrics) | nindent 8 }}
+        {{- end }}
+        {{- end }}
+      labels:
+        mode: {{ $mode }}
+        {{- include "sm-gpu.selectorLabels" . | nindent 8 }}
+        {{- with .Values.tritonServer.additionalLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tritonServer.nodeSelector }}
+      nodeSelector:
+      {{- range $selector, $value := . }}
+        {{ $selector }}: {{ $value | quote }}
+      {{- end }}
+      {{- end }}
+      {{- with .Values.tritonServer.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with (default $.Values.global.imagePullSecrets $.Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $containerName }}
+          image: {{ include "sm-gpu.image" (dict "Chart" .Chart "global" .Values.global.transcriber "component" .Values.tritonServer) | quote }}
+          {{- with .Values.tritonServer.imagePullPolicy }}
+          imagePullPolicy: {{ . }}
+          {{- end }}
+          command: {{ default "" .Values.tritonServer.command }}
+          args: {{ default "" .Values.tritonServer.args }}
+          env:
+            - name: NVIDIA_REQUIRE_CUDA
+              value: "cuda>=11.6"
+            - name: CUDA_VISIBLE_DEVICES
+              value: "0"
+            {{- if ne "translation" $mode }}
+            - name: SM_BATCH_MODE
+              value: {{ eq "batch" $mode | quote }}
+            {{- if $op }}
+            - name: SM_OPERATING_POINT
+              value: {{ $op }}
+            {{- end }}
+            {{- end }}
+            - name: SM_LICENSE_FILE
+              value: /etc/secrets/license.json
+            {{- range $k, $v := .Values.tritonServer.additionalEnvs }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          ports:
+            - name: triton-http
+              containerPort: 8000
+            - name: triton-grpc
+              containerPort: 8001
+            - name: triton-metrics
+              containerPort: 8002
+          volumeMounts:
+            - name: triton-license
+              mountPath: "/etc/secrets"
+              readOnly: true
+          {{- if eq "translation" $mode }}
+            - name: dshm
+              mountPath: /dev/shm
+          {{- end }}
+          {{- with .Values.tritonServer.additionalVolumeMounts}}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tritonServer.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - "/bin/bash"
+                  - "-c"
+                  # waiting for all tcp connections to port 8001 to go away before finishing the pre stop hook
+                  - |
+                    {{ .Files.Get "preStop.sh" | nindent 20 }}
+          {{- if ne "translation" $mode }}
+          {{- with .Values.tritonServer.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tritonServer.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          {{- with .Values.tritonServer.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- if .Values.inferenceSidecar.enabled }}
+        - name: "inference-sidecar"
+          image: {{ include "sm-gpu.image" (dict "Chart" .Chart "global" .Values.global.resourceManager "component" .Values.inferenceSidecar) | quote }}
+          {{- with .Values.inferenceSidecar.imagePullPolicy }}
+          imagePullPolicy: {{ . }}
+          {{- end }}
+          env:
+            - name: SM_DEPLOYMENT_NAME
+              value: {{ $name }}
+            - name: SM_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.podIP
+            - name: SM_METRICS_PORT
+              value: {{ $inferenceSidecarPort | quote }}
+            - name: REGISTER_CONDITIONS
+              value: {{ $.Values.inferenceSidecar.registerConditions | quote }}
+            {{- if not (or (hasKey .Values.inferenceSidecar.env "REGISTER_FEATURES") (eq "translation" $mode))}}
+            - name: REGISTER_FEATURES
+              value: {{ toJson (merge (include "sm-gpu.models_for_recipe" . | fromYaml ) (dict "version" (include "sm-gpu.registered_features_version" .) "partition" (default "default" .Values.inferenceSidecar.registerFeatures.partition ))) | squote }}
+            {{- end }}
+            - name: SM_TOKEN_STORE_URL
+            {{- if $.Values.inferenceSidecar.resourceManager.configMap.enabled }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ default $.Release.Name $.Values.inferenceSidecar.resourceManager.configMap.name }}
+                  key: resource_manager_url
+            {{- else }}
+              value: {{ default $.Values.global.resourceManager.url $.Values.inferenceSidecar.resourceManager.url }}
+            {{- end }}
+            - name: SM_CRASH_DETECTOR_DRY_RUN
+              value: {{ .Values.inferenceSidecar.crashDetectorDryRun | quote }}
+            - name: SM_SPEC_VERSION
+              value: "1"
+            {{- range $k, $v := .Values.inferenceSidecar.env }}
+            - name: {{ $k }}
+              value: {{ $v | squote }}
+            {{- end }}
+          ports:
+            - name: sidecar-metrics
+              containerPort: {{ $inferenceSidecarPort }}
+              protocol: TCP
+            {{- /* Do not change the port name as it is expected by repopulation service */}}
+            - name: register-repop
+              containerPort: 8022
+              protocol: TCP
+          {{- with .Values.inferenceSidecar.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.tritonServer.terminationGracePeriodSeconds }}
+      {{- with .Values.tritonServer.runtimeClassName }}
+      runtimeClassName: {{ . }}
+      {{- end }}
+      {{- with $.Values.tritonServer.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: triton-license
+          secret:
+            secretName: {{ default .Values.global.licensing.secretName .Values.tritonServer.licensing.secretName }}
+            optional: false
+      {{- if eq "translation" $mode }}
+        # https://stackoverflow.com/questions/46085748/define-size-for-dev-shm-on-container-engine
+        - name: dshm
+          emptyDir:
+            medium: Memory
+      {{- end }}
+      {{- with .Values.additionalVolumes }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

@@ -1,0 +1,13 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+{{- $name := include "sm-llm-proxy.llmProxyServiceName" . }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "sm-llm-proxy.selectorLabels" (merge (dict "app" $name) .) | nindent 6 }}
+{{- end }}

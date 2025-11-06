@@ -1,0 +1,364 @@
+{
+  "metadata": {
+    "language_pack_info": {
+      "ar": {
+        "language_description": "Arabic"
+      },
+      "ba": {
+        "language_description": "Bashkir"
+      },
+      "eu": {
+        "language_description": "Basque"
+      },
+      "be": {
+        "language_description": "Belarusian"
+      },
+      "bg": {
+        "language_description": "Bulgarian"
+      },
+      "bn": {
+        "language_description": "Bengali"
+      },
+      "yue": {
+        "language_description": "Cantonese"
+      },
+      "ca": {
+        "language_description": "Catalan"
+      },
+      "hr": {
+        "language_description": "Croatian"
+      },
+      "cs": {
+        "language_description": "Czech"
+      },
+      "da": {
+        "language_description": "Danish"
+      },
+      "nl": {
+        "language_description": "Dutch"
+      },
+      "en": {
+        "language_description": "English",
+        "locales": {
+          "en-GB": {
+            "name": "British English"
+          },
+          "en-US": {
+            "name": "US English"
+          },
+          "en-AU": {
+            "name": "Australian English"
+          }
+        },
+        "domains": {
+          "finance": {
+            "name": "English - financial"
+          }
+        }
+      },
+      "en_ms": {
+        "language_description": "English / Malay"
+      },
+      "eo": {
+        "language_description": "Esperanto"
+      },
+      "et": {
+        "language_description": "Estonian"
+      },
+      "fa": {
+        "language_description": "Persian"
+      },
+      "fi": {
+        "language_description": "Finnish"
+      },
+      "fr": {
+        "language_description": "French"
+      },
+      "gl": {
+        "language_description": "Galician"
+      },
+      "de": {
+        "language_description": "German"
+      },
+      "el": {
+        "language_description": "Greek"
+      },
+      "he": {
+        "language_description": "Hebrew"
+      },
+      "hi": {
+        "language_description": "Hindi"
+      },
+      "hu": {
+        "language_description": "Hungarian"
+      },
+      "ia": {
+        "language_description": "Interlingua"
+      },
+      "it": {
+        "language_description": "Italian"
+      },
+      "id": {
+        "language_description": "Indonesian"
+      },
+      "ga": {
+        "language_description": "Irish"
+      },
+      "ja": {
+        "language_description": "Japanese"
+      },
+      "ko": {
+        "language_description": "Korean"
+      },
+      "lv": {
+        "language_description": "Latvian"
+      },
+      "lt": {
+        "language_description": "Lithuanian"
+      },
+      "ms": {
+        "language_description": "Malay"
+      },
+      "mt": {
+        "language_description": "Maltese"
+      },
+      "cmn": {
+        "language_description": "Mandarin",
+        "locales": {
+          "cmn-Hans": {
+            "name": "Simplified Mandarin"
+          },
+          "cmn-Hant": {
+            "name": "Traditional Mandarin"
+          }
+        }
+      },
+      "cmn_en": {
+        "language_description": "English / Mandarin"
+      },
+      "mr": {
+        "language_description": "Marathi"
+      },
+      "mn": {
+        "language_description": "Mongolian"
+      },
+      "nn": {
+        "language_description": "Norwegian Nynorsk"
+      },
+      "no": {
+        "language_description": "Norwegian"
+      },
+      "pl": {
+        "language_description": "Polish"
+      },
+      "pt": {
+        "language_description": "Portuguese"
+      },
+      "ro": {
+        "language_description": "Romanian"
+      },
+      "ru": {
+        "language_description": "Russian"
+      },
+      "sk": {
+        "language_description": "Slovakian"
+      },
+      "sl": {
+        "language_description": "Slovenian"
+      },
+      "es": {
+        "language_description": "Spanish",
+        "domains": {
+          "bilingual-en": {
+            "name": "English / Spanish"
+          }
+        }
+      },
+      "sv": {
+        "language_description": "Swedish"
+      },
+      "sw": {
+        "language_description": "Swahili"
+      },
+      "ta": {
+        "language_description": "Tamil"
+      },
+      "th": {
+        "language_description": "Thai"
+      },
+      "tr": {
+        "language_description": "Turkish"
+      },
+      "ug": {
+        "language_description": "Uyghur"
+      },
+      "uk": {
+        "language_description": "Ukrainian"
+      },
+      "ur": {
+        "language_description": "Urdu"
+      },
+      "vi": {
+        "language_description": "Vietnamese"
+      },
+      "cy": {
+        "language_description": "Welsh"
+      }
+    }
+  },
+  "realtime": {
+    "transcription": [
+      {
+        "version": "latest",
+        "languages": [
+          "ar",
+          "ba",
+          "eu",
+          "be",
+          "bg",
+          "bn",
+          "yue",
+          "ca",
+          "hr",
+          "cs",
+          "da",
+          "nl",
+          "en",
+          "en_ms",
+          "eo",
+          "et",
+          "fa",
+          "fi",
+          "fr",
+          "gl",
+          "de",
+          "el",
+          "he",
+          "hi",
+          "hu",
+          "ia",
+          "it",
+          "id",
+          "ga",
+          "ja",
+          "ko",
+          "lv",
+          "lt",
+          "ms",
+          "mt",
+          "cmn",
+          "cmn_en",
+          "mr",
+          "mn",
+          "no",
+          "pl",
+          "pt",
+          "ro",
+          "ru",
+          "sk",
+          "sl",
+          "es",
+          "sv",
+          "sw",
+          "ta",
+          "th",
+          "tr",
+          "ug",
+          "uk",
+          "ur",
+          "vi",
+          "cy"
+        ],
+        "locales": {
+          "en": ["en-US", "en-GB", "en-AU"],
+          "cmn": ["cmn-Hans", "cmn-Hant"]
+        },
+        "domains": {
+          "en": [
+            "finance"
+          ],
+          "es": [
+            "bilingual-en"
+          ]
+        }
+      }
+    ],
+    "translation": [
+      {
+        "version": "latest",
+        "languages": {
+          "bg": ["en"],
+          "ca": ["en"],
+          "cmn": ["en"],
+          "cs": ["en"],
+          "da": ["en"],
+          "de": ["en"],
+          "el": ["en"],
+          "en": [
+            "bg",
+            "ca",
+            "cmn",
+            "cs",
+            "da",
+            "de",
+            "el",
+            "es",
+            "et",
+            "fi",
+            "fr",
+            "gl",
+            "hi",
+            "hr",
+            "hu",
+            "id",
+            "it",
+            "ja",
+            "ko",
+            "lt",
+            "lv",
+            "ms",
+            "nl",
+            "no",
+            "pl",
+            "pt",
+            "ro",
+            "ru",
+            "sk",
+            "sl",
+            "sv",
+            "tr",
+            "uk",
+            "vi"
+          ],
+          "es": ["en"],
+          "et": ["en"],
+          "fi": ["en"],
+          "fr": ["en"],
+          "gl": ["en"],
+          "hi": ["en"],
+          "hr": ["en"],
+          "hu": ["en"],
+          "id": ["en"],
+          "it": ["en"],
+          "ja": ["en"],
+          "ko": ["en"],
+          "lt": ["en"],
+          "lv": ["en"],
+          "ms": ["en"],
+          "nl": ["en"],
+          "no": ["en"],
+          "pl": ["en"],
+          "pt": ["en"],
+          "ro": ["en"],
+          "ru": ["en"],
+          "sk": ["en"],
+          "sl": ["en"],
+          "sv": ["en"],
+          "tr": ["en"],
+          "uk": ["en"],
+          "vi": ["en"]
+        }
+      }
+    ]
+  }
+}

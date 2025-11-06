@@ -1,0 +1,168 @@
+---
+global:
+  resourceManager:
+    image:
+      registry: speechmatics.azurecr.io
+
+  flow:
+    # -- Add vllm backend details in llm-proxy-config if vllm enabled in parent chart
+    vllm:
+      enabled: false
+      config:
+        model: ""
+      service:
+        serviceName: llm
+        port: 8000
+
+image:
+  repository: llm-proxy
+
+replicas: 1
+containerPort: 8080
+
+additionalAnnotations: {}
+additionalLabels: {}
+
+additionalPodAnnotations: {}
+additionalPodLabels: {}
+
+envFrom: []
+additionalEnvFrom: []
+additionalEnv: {}
+
+# LLM Proxy Configurations
+# -- Whether the LLM Proxy is running on-prem. If true, LLM proxy will accept empty config and TPM/RPM settings for backend will be optional.
+isOnPrem: false
+# -- Maximum number of backend retries before giving up
+maxBackendRetries: 3
+# -- Time to wait between backend retries (ms)
+backendRetryIntervalMs: 500
+# -- Cumulative time to wait for a response from all backend retries (sec)
+backendTimeoutSec: 10
+# -- Interval for verifying whether the backend has completed its cooling period (sec)
+backendRecoveryInterval: 1
+# -- Exponential Moving Average (EMA) smoothing factor is a parameter to determine the weight given to the most recent data points versus older data points
+backendLatencyEmaSmoothingFactor: 0.7
+# -- Select backend based on percentage utilization
+backendUtilizationThreshold: 0.8
+# -- Weight factor for latency in backend selection
+latencyWeightFactor: 3
+# -- Maximum time to wait before retrying a backend after a failure
+maxCoolingPeriodSec: 10
+# -- Retry all LLM errors
+retryAllLlmErrors: true
+
+# This is the time the pod will wait for existing connections to close before shutting down
+# Value is set in LLM_PROXY_SHUTDOWN_GRACE_PERIOD_SEC env var
+# terminationGracePeriodSeconds uses the same value and configured with extra 10 seconds
+llmProxyShutdownGracePeriodSec: 300
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 100Mi
+
+livenessProbe: {}
+#   httpGet:
+#     path: /health/liveliness
+#     port: 4000
+#   initialDelaySeconds: 120
+#   periodSeconds: 15
+#   successThreshold: 1
+#   failureThreshold: 3
+#   timeoutSeconds: 10
+
+readinessProbe: {}
+#   httpGet:
+#     path: /health/readiness
+#     port: 4000
+#   initialDelaySeconds: 120
+#   periodSeconds: 15
+#   successThreshold: 1
+#   failureThreshold: 3
+#   timeoutSeconds: 10
+
+# additional volumes and volumeMounts to make available on llm-proxy pod
+additionalVolumeMounts: []
+additionalVolumes:
+  []
+  # - name: hello
+  #   hostPath: /hello
+
+nodeSelector: {}
+tolerations: []
+
+imagePullSecrets: []
+
+# Allow runAsUser, runAsGroup, fsGroup etc to pass through
+securityContext: {}
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# configure service type and annotations
+service:
+  port: 8080
+  type: ClusterIP
+  annotations: {}
+
+# Config params for the proxy
+config:
+  # -- List of llm instance groups for models
+  model_list: []
+  #   - model_name: azure-gpt-4o
+  #     llm_params:
+  #       url: https://sm-oai-sdc-bc12f058.openai.azure.com/openai/deployments/gpt-4o/chat/completions?api-version=2024-02-15-preview
+  #       api_key: os.environ/AZURE_API_KEY_bc12f058
+  #       model: gpt-4o
+  #       tpm: 500000
+  #       rpm: 3000
+  #   - model_name: openai-gpt-4o
+  #     llm_params:
+  #       url: https://api.openai.com/v1/chat/completions
+  #       api_key: os.environ/OPENAI_API_KEY
+  #       model: gpt-4o
+  #       tpm: 500000
+  #       rpm: 3000
+
+  # -- Map of fallbacks for model group (not supported yet)
+  fallbacks: {}
+    # azure-gpt-4o:
+    #   - openai-gpt-4o
+    # openai-gpt-4o:
+    #   - azure-gpt-4o
+
+# Enable provisioning of secrets using ExternalSecret resources
+externalSecrets:
+  enabled: false
+  secretStoreName: akv-secrets
+  secretStoreKind: ClusterSecretStore
+
+secrets:
+  data:
+    {}
+    # - secretKey: openai-api-key
+    #   remoteRef:
+    #     key: openai-api-key
+    # - secretKey: azure-openai-api-key
+    #   remoteRef:
+    #     key: azure-openai-api-key
+  additionalData:
+    {}
+    # - secretKey: azure-openai-api-key-100
+    #   remoteRef:
+    #     key: azure-openai-api-key-100
+
+# Ingress configuration
+ingress:
+  enabled: false
+
+  annotations: {}
+  labels: {}
+
+  # Which ingress controller to use for ingress
+  ingressClassName: nginx
+
+  zone: speechmatics.io
+  tlsSecretName: tls-secret

@@ -1,0 +1,53 @@
+{{- $name := include "sm-tts.ttsServiceName" . }}
+{{- if not (or .Values.global.sessionGroups.enabled .Values.sessionGroups.enabled) }}
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.ingress.labels }}
+  labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- with .Values.ingress.ingressClassName }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  rules:
+    - host: {{ include "sm-tts.ttsIngressHost" . }}
+      http:
+        paths:
+        {{/* Sort keys for consistent rendering of ingress paths */}}
+        {{- $voices := keys .Values.voices | sortAlpha }}
+        {{- range $index, $voice := $voices }}
+        {{- if eq $index 0 }}
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ $name }}-{{ $voice }}
+                port:
+                  number: {{ $.Values.service.port }}
+        {{- end }}
+          - path: /generate/{{ $voice }}
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ $name }}-{{ $voice }}
+                port:
+                  number: {{ $.Values.service.port }}
+        {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ include "sm-tts.ttsIngressHost" . | quote }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,61 @@
+{{- if $.Values.transcriber.mountModels.enabled }}
+{{- if eq $.Values.transcriber.mountModels.provider "azureblob" }}
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: blob-model-storage
+  namespace: {{ .Release.Namespace }}
+provisioner: blobfuse.csi.azure.com
+parameters:
+  csi.storage.k8s.io/provisioner-secret-name: "{{ include "sm-transcriber.fullname" . }}-model-storage"
+  csi.storage.k8s.io/provisioner-secret-namespace: {{ .Release.Namespace }}
+  csi.storage.k8s.io/node-stage-secret-name: "{{ include "sm-transcriber.fullname" . }}-model-storage"
+  csi.storage.k8s.io/node-stage-secret-namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  annotations:
+    pv.kubernetes.io/provisioned-by: blob.csi.azure.com
+  name: blob-model-storage
+  namespace: {{ .Release.Namespace }}
+spec:
+  capacity:
+    storage: 150Gi
+  accessModes:
+  - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: blob-model-storage
+  mountOptions:
+  - "-o allow_other"
+  - "--file-cache-timeout-in-seconds=3000"
+  csi:
+    driver: blob.csi.azure.com
+    {{ with $.Values.transcriber.mountModels.azureBlob }}
+    {{- /* make sure volumeHandle is unique for every storage blob container in the cluster */}}
+    volumeHandle: {{ printf "%s#%s#%s" .resourceGroup .storageAccount .dataContainerName }}
+    volumeAttributes:
+      resourceGroup: {{ .resourceGroup | quote }}
+      storageAccount: {{ .storageAccount | quote }}
+      containerName: {{ .dataContainerName | quote }}
+    {{- end }}
+    nodeStageSecretRef:
+      name: "{{ include "sm-transcriber.fullname" . }}-model-storage"
+      namespace: {{ .Release.Namespace }}
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: blob-model-storage
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 150Gi
+  volumeName: blob-model-storage
+  storageClassName: blob-model-storage
+{{- end }}
+{{- end }}

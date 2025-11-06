@@ -1,0 +1,30 @@
+{{- $active := (include "sm-proxy.activeDeployment" .) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sm-proxy.fullname" . }}
+  labels:
+    {{- include "sm-proxy.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+spec:
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}
+  selector:
+    {{- include "sm-proxy.selectorLabels" (merge (dict "deploy" $active) .) | nindent 4 }}
+{{- if .Values.proxyCache.enabled }}
+{{- $name := include "sm-proxy.cacheServiceName" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+spec:
+  ports:
+    - port: {{ .Values.proxyCache.service.port }}
+      targetPort: {{ .Values.proxyCache.service.port }}
+  selector:
+    {{- include "sm-proxy.selectorLabels" (merge (dict "app" $name) .) | nindent 4 }}
+{{- end }}

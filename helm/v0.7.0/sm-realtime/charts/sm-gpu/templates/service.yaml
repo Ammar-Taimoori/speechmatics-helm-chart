@@ -1,0 +1,52 @@
+{{- $mode := (required "Please specify triton server mode (can be either batch, rt or translation)" .Values.tritonServer.mode) }}
+{{- $serviceAnnotations := (.Values.tritonServer.service.annotations | default dict) }}
+{{- if .Values.tritonServer.autoscaling.enabled }}
+{{      $_ := set $serviceAnnotations "prometheus.io/scrape" "true" }}
+{{- if not .Values.inferenceSidecar.enabled }}     
+{{      $_ := set $serviceAnnotations "prometheus.io/port" "8002" }}
+        # We need to scrape metrics from multiple ports if inference sidecar is enabled.
+        # Prometheus does not have a support to scrape multiple ports in service using annotations.
+        # however, prometheus configuration can be updated to scrape ports named with *metrics* 
+        # when prometheus.io/port annotation is not set
+{{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "sm-gpu.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "sm-gpu.annotations" . | nindent 4 }}
+    {{- with $serviceAnnotations }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  labels:
+    mode: {{ $mode }}
+    {{- include "sm-gpu.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.tritonServer.service.headless }}
+  clusterIP: None
+  {{- end }}
+  selector:
+    {{- include "sm-gpu.selectorLabels" . | nindent 4 }}
+  type: {{ .Values.tritonServer.service.type | default "ClusterIP" }}
+  ports:
+    - protocol: TCP
+      name: http-service
+      port: {{ .Values.tritonServer.service.ports.http | default 8000 }}
+      targetPort: triton-http
+    - protocol: TCP
+      name: grpc-service
+      port: {{ .Values.tritonServer.service.ports.grpc | default 8001 }}
+      targetPort: triton-grpc
+    - protocol: TCP
+      name: metrics-service
+      port: {{ .Values.tritonServer.service.ports.metrics | default 8002 }}
+      targetPort: triton-metrics
+    {{- if .Values.inferenceSidecar.enabled }}
+    - protocol: TCP
+      name: metrics-sidecar
+      port: {{ .Values.tritonServer.service.ports.sidecar | default 8008 }}
+      targetPort: sidecar-metrics
+    {{- end }}

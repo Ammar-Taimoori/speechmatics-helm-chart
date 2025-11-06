@@ -1,0 +1,14 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+{{- range $dep, $config := .Values.proxy.deployments }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ printf "%s-%s" (include "sm-proxy.fullname" $) $dep }}
+spec:
+  minAvailable: {{ default $.Values.podDisruptionBudget.minAvailable $config.pdbMinAvailable }}
+  selector:
+    matchLabels:
+      {{- include "sm-proxy.selectorLabels" (merge (dict "deploy" $dep) $) | nindent 6 }}
+{{- end }}
+{{- end }}

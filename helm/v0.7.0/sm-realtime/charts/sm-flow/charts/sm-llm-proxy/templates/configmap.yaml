@@ -1,0 +1,17 @@
+{{- $mergedModelList := (concat .Values.config.model_list  (include "sm-llm-proxy.vllmModelList" . | fromYaml).model_list) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sm-llm-proxy.llmProxyConfigmapName" . }}
+  namespace: {{ .Release.Namespace }}
+data:
+  llm-proxy-config: |
+    {{- with $mergedModelList }}
+    model_list:
+    {{- . | toYaml | nindent 4 }}
+    {{- end }}
+    {{- with .Values.config.fallbacks }}
+    fallbacks:
+      {{- . | toYaml | nindent 6 }}
+    {{- end }}

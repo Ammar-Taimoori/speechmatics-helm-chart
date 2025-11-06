@@ -1,0 +1,13 @@
+{{- if (and .Values.pdb.enabled (ne (int (ternary .Values.tritonServer.autoscaling.scalingConfig.min_replicas .Values.tritonServer.replicas .Values.tritonServer.autoscaling.enabled)) 1)) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: "{{ template "sm-gpu.fullname" . }}-pdb"
+  namespace: {{ .Release.Namespace }}
+spec:
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "sm-gpu.selectorLabels" . | nindent 6 }}
+{{- end }}

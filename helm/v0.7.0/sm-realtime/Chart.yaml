@@ -1,0 +1,57 @@
+annotations:
+  sm-recursively-depending-on: sm-flow,sm-resource-manager,sm-gpu
+apiVersion: v2
+appVersion: 1.36.17-1329687
+dependencies:
+- alias: proxy
+  condition: proxy.enabled
+  name: sm-proxy
+  repository: file://../sm-proxy
+  version: ~0.3.0
+- alias: resourceManager
+  name: sm-resource-manager
+  repository: file://../sm-resource-manager
+  version: ~1.8.0
+- alias: transcribers
+  condition: transcribers.enabled
+  name: sm-transcriber
+  repository: file://../sm-transcriber
+  version: ~0.8.0
+- alias: inferenceServerCustom
+  condition: inferenceServerCustom.enabled
+  name: sm-gpu
+  repository: file://../sm-gpu
+  version: ~3.19.0
+- alias: inferenceServerStandardAll
+  condition: inferenceServerStandardAll.enabled
+  name: sm-gpu
+  repository: file://../sm-gpu
+  version: ~3.19.0
+- alias: inferenceServerEnhancedRecipe1
+  condition: inferenceServerEnhancedRecipe1.enabled
+  name: sm-gpu
+  repository: file://../sm-gpu
+  version: ~3.19.0
+- alias: inferenceServerEnhancedRecipe2
+  condition: inferenceServerEnhancedRecipe2.enabled
+  name: sm-gpu
+  repository: file://../sm-gpu
+  version: ~3.19.0
+- alias: inferenceServerEnhancedRecipe3
+  condition: inferenceServerEnhancedRecipe3.enabled
+  name: sm-gpu
+  repository: file://../sm-gpu
+  version: ~3.19.0
+- alias: inferenceServerEnhancedRecipe4
+  condition: inferenceServerEnhancedRecipe4.enabled
+  name: sm-gpu
+  repository: file://../sm-gpu
+  version: ~3.19.0
+- alias: flow
+  condition: flow.enabled
+  name: sm-flow
+  repository: file://../sm-flow
+  version: ~0.5.0
+description: Deploy RT transcribers, inference controller and inference servers
+name: sm-realtime
+version: 0.7.0

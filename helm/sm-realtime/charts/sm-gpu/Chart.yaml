@@ -1,0 +1,16 @@
+apiVersion: v2
+appVersion: 13.5.0
+dependencies:
+- condition: tritonServer.autoscaling.installDependencies
+  name: prometheus
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 27.25.0
+- alias: scaler
+  condition: tritonServer.autoscaling.installDependencies
+  name: sm-scaling
+  repository: file://../sm-scaling
+  version: 0.0.4
+description: A Helm chart for deploying triton-server onto K8s
+name: sm-gpu
+type: application
+version: 3.19.13

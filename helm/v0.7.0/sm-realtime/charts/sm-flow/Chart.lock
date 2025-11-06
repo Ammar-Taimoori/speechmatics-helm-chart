@@ -1,0 +1,12 @@
+dependencies:
+- name: sm-llm-proxy
+  repository: file://../sm-llm-proxy
+  version: 0.0.16
+- name: sm-tts
+  repository: file://../sm-tts
+  version: 0.0.16
+- name: sm-vllm
+  repository: file://../sm-vllm
+  version: 0.0.5
+digest: sha256:18d1ff420aec7da53e06b2d8e211b47aae4512a6c1e07935cc183b547eaecbd6
+generated: "2025-10-24T15:17:19.69864403Z"

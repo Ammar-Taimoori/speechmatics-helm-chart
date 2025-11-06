@@ -1,0 +1,119 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sm-scaling.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "sm-scaling.annotations" . | nindent 4 }}
+    {{- with .Values.additionalAnnotations }}
+    {{- toYaml .| nindent 4 }}
+    {{- end }}
+  labels:
+    {{- include "sm-scaling.labels" . | nindent 4 }}
+    {{- with .Values.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      {{- include "sm-scaling.selectorLabels" . | nindent 8 }}
+  template:
+    metadata:
+      {{- with .Values.additionalPodAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "sm-scaling.selectorLabels" . | nindent 8 }}
+        {{- with .Values.additionalPodLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with (default .Values.global.imagePullSecrets .Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: scaler
+        command:
+        - /scaler
+        env:
+          - name: SM_LOG_LEVEL
+            value: "info"
+          {{- if .Values.backends.prometheus.enabled }}
+          - name: SM_PROMETHEUS_URL
+            value: {{ .Values.backends.prometheus.url | quote }}
+          {{- end }}
+          {{- if .Values.backends.database.extraMetrics.enabled }}
+          - name: SM_SCALER_EXPORTER_CONFIG_MAP_NAME
+            value: {{ .Values.backends.database.extraMetrics.configMap.name }}
+          {{- end }}
+          {{- with .Values.backends.database.stageNames }}
+          - name: SM_STAGE_NAME_MAP
+            value: {{ . | toJson | squote }}
+          {{- end }}
+          {{- if .Values.backends.resourceManagerMetrics.enabled }}
+          - name: SM_RESOURCE_MANAGER_METRICS_URL
+            value: {{ .Values.backends.resourceManagerMetrics.url | quote }}
+          {{- end }}
+          {{- range $k, $v := .Values.additionalEnv }}
+          - name: {{ $k }}
+            value: {{ $v | quote }}
+          {{- end }}
+        image: {{ include "sm-scaling.image" (dict "Chart" .Chart "global" .Values.global.scaler "component" .Values) | quote }}
+        imagePullPolicy: IfNotPresent
+        ports:
+          - containerPort: 8080
+            name: http
+            protocol: TCP
+        {{- with .Values.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        volumeMounts:
+          {{- if .Values.backends.database.enabled }}
+          - name: db-conn-string
+            mountPath: "/var/secrets/db/"
+            readOnly: true
+          {{- end }}
+          {{- with .Values.additionalVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      serviceAccountName: {{ include "sm-scaling.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+      {{- range $selector, $value := . }}
+        {{ $selector }}: {{ $value | quote }}
+      {{- end }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        {{- if .Values.backends.database.enabled }}
+        - name: db-conn-string
+          secret:
+            secretName: {{ .Values.backends.database.secretName }}
+            items:
+              - key: conn_string
+                path: db-conn-string
+        {{- end }}
+        {{- with .Values.additionalVolumes }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}

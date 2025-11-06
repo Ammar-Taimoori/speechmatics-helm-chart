@@ -1,0 +1,29 @@
+{{- if not (default .Values.global.sessionGroups.enabled .Values.sessionGroups.enabled) }}
+{{- $name := (include "sm-transcriber.fullname" .) }}
+{{- $mode := required "Please specify a transcriber mode" .Values.transcriber.mode }}
+{{- range $lang := uniq (concat .Values.transcriber.languages.cpuLanguages .Values.transcriber.languages.gpuLanguages .Values.global.transcriber.languages) }}
+{{ $cleaned_lang := (  $lang | replace "_" "-" ) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $.Values.transcriber.nameOverride | default (printf "%s-%s" $name $cleaned_lang) }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    lang: {{ $lang | quote }}
+    mode: {{ $mode }}
+{{- include "sm-transcriber.labels" $ | nindent 4 }}
+  {{- with $.Values.transcriber.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ports:
+  - port: 9000
+    protocol: TCP
+    targetPort: 9000
+  selector:
+    app: {{ $.Values.transcriber.nameOverride | default (printf "%s-%s" $name $cleaned_lang) }}
+  type: {{ $.Values.transcriber.service.type | default "ClusterIP" }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,113 @@
+{{- if .Values.tritonServer.ingress.enabled -}}
+{{- $fullName := include "sm-gpu.fullname" . -}}
+{{- $svcPort := ternary .Values.tritonServer.service.portHttps .Values.tritonServer.service.portHttp .Values.tritonServer.ingress.https -}}
+{{- if and .Values.tritonServer.ingress.className (not (semverCompare ">=1.18-0" .Capabilities.KubeVersion.GitVersion)) }}
+{{- if not (hasKey .Values.tritonServer.ingress.annotations "kubernetes.io/ingress.class") }}
+{{- $_ := set .Values.tritonServer.ingress.annotations "kubernetes.io/ingress.class" .Values.tritonServer.ingress.className}}
+{{- end }}
+{{- end }}
+{{- if ne .Values.tritonServer.ingress.https false }}
+{{- $_ := set .Values.tritonServer.ingress.annotations "cert-manager.io/cluster-issuer" "letsencrypt-prod" }}
+{{- end }}
+---
+{{- if semverCompare ">=1.19-0" .Capabilities.KubeVersion.GitVersion -}}
+apiVersion: networking.k8s.io/v1
+{{- else -}}
+apiVersion: extensions/v1beta1
+{{- end }}
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-gpu.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.tritonServer.ingress.annotations | nindent 4 }}
+spec:
+  {{- if and .Values.tritonServer.ingress.className (semverCompare ">=1.18-0" .Capabilities.KubeVersion.GitVersion) }}
+  ingressClassName: {{ .Values.tritonServer.ingress.className }}
+  {{- end }}
+  {{- if .Values.tritonServer.ingress.https }}
+  tls:
+    - hosts:
+        - {{ required "ingress.httpUrl is required when ingress is enabled" .Values.tritonServer.ingress.httpUrl | quote }}
+        - {{ required "ingress.grpcUrl is required when ingress is enabled" .Values.tritonServer.ingress.grpcUrl | quote }}
+      secretName: {{ printf "letsencrypt-prod-%s" (include "sm-gpu.fullname" .) }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.tritonServer.ingress.httpUrl | quote }}
+      http:
+        paths:
+          - path: /metrics
+          {{- if (semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion) }}
+            pathType: Exact
+          {{- end }}
+            backend:
+              {{- if semverCompare ">=1.19-0" $.Capabilities.KubeVersion.GitVersion }}
+              service:
+                name: triton-server
+                port:
+                  number: {{ .Values.tritonServer.service.ports.metrics | default 8002 }}
+              {{- else }}
+              serviceName: triton-server
+              servicePort: {{ .Values.tritonServer.service.ports.metrics | default 8002 }}
+              {{- end }}
+          - path: /
+            {{- if (semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion) }}
+            pathType: ImplementationSpecific
+            {{- end }}
+            backend:
+              {{- if semverCompare ">=1.19-0" $.Capabilities.KubeVersion.GitVersion }}
+              service:
+                name: triton-server
+                port:
+                  number: {{ .Values.tritonServer.service.ports.http | default 8001 }}
+              {{- else }}
+              serviceName: triton-server
+              servicePort: {{ .Values.tritonServer.service.ports.http | default 8001 }}
+              {{- end }}
+---
+{{- if semverCompare ">=1.19-0" .Capabilities.KubeVersion.GitVersion -}}
+apiVersion: networking.k8s.io/v1
+{{- else -}}
+apiVersion: extensions/v1beta1
+{{- end }}
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-grpc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-gpu.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    {{- toYaml .Values.tritonServer.ingress.annotations | nindent 4 }}
+spec:
+  {{- if and .Values.tritonServer.ingress.className (semverCompare ">=1.18-0" .Capabilities.KubeVersion.GitVersion) }}
+  ingressClassName: {{ .Values.tritonServer.ingress.className }}
+  {{- end }}
+  {{- if .Values.tritonServer.ingress.https }}
+  tls:
+    - hosts:
+        - {{ required "ingress.httpUrl is required when ingress is enabled" .Values.tritonServer.ingress.httpUrl | quote }}
+        - {{ required "ingress.grpcUrl is required when ingress is enabled" .Values.tritonServer.ingress.grpcUrl | quote }}
+      secretName: {{ printf "letsencrypt-prod-%s" (include "sm-gpu.fullname" .) }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.tritonServer.ingress.grpcUrl | quote }}
+      http:
+        paths:
+          - path: /
+            {{- if (semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion) }}
+            pathType: ImplementationSpecific
+            {{- end }}
+            backend:
+              {{- if semverCompare ">=1.19-0" $.Capabilities.KubeVersion.GitVersion }}
+              service:
+                name: triton-server
+                port:
+                  number: {{ .Values.tritonServer.service.ports.grpc | default 8001 }}
+              {{- else }}
+              serviceName: triton-server
+              servicePort: {{ .Values.tritonServer.service.ports.grpc | default 8001 }}
+              {{- end }}
+{{- end }}

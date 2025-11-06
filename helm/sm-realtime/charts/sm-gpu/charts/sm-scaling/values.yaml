@@ -1,0 +1,117 @@
+global:
+  scaler:
+    image:
+      # -- Registry to use for scaler imageßßß
+      registry: speechmaticsproduction.azurecr.io
+
+      # -- tag will default to .Chart.AppVersion
+      # tag: ""
+
+  # -- global imagePullSecrets
+  imagePullSecrets: []
+
+# -- Number of replicas
+replicas: 1
+
+# -- Additional deployment annotations
+additionalAnnotations: {}
+# -- Additional deployment labels
+additionalLabels: {}
+
+# -- Additional pod annotations
+additionalPodAnnotations: {}
+# -- Additional pod labels
+additionalPodLabels: {}
+
+# -- Additional environment variables
+additionalEnv: {}
+
+# -- additional volumeMounts to make available on scaler pod
+additionalVolumeMounts: []
+# -- additional volumes to make available on scaler pod
+additionalVolumes: []
+
+imagePullSecrets: []
+
+# -- These values will take precedence over the global.scaler values if provided.
+image:
+  repository: scaler
+  # tag: ""
+
+# -- Resource requests and limits for the scaler server
+resources: {}
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+# -- Liveness probe for the scaler server
+livenessProbe: {}
+#   httpGet:
+#     path: /health/liveliness
+#     port: 4000
+#   initialDelaySeconds: 120
+#   periodSeconds: 15
+#   successThreshold: 1
+#   failureThreshold: 3
+#   timeoutSeconds: 10
+
+# -- Readiness probe for the scaler server
+readinessProbe: {}
+#   httpGet:
+#     path: /health/readiness
+#     port: 4000
+#   initialDelaySeconds: 120
+#   periodSeconds: 15
+#   successThreshold: 1
+#   failureThreshold: 3
+#   timeoutSeconds: 10
+
+# -- Termination grace period for the pod
+terminationGracePeriodSeconds: 30
+
+# -- Security context for the scaler
+securityContext:
+  privileged: true
+  allowPrivilegeEscalation: true
+  runAsUser: 0
+  runAsGroup: 0
+  fsGroup: 0
+  runAsNonRoot: false
+
+
+# -- nodeSelector for the scaler
+nodeSelector: {}
+# -- tolerations for the scaler
+tolerations: []
+
+# Backends configuration for scaler
+backends:
+  database:
+    # -- Enable database backend
+    enabled: false
+    # -- Database backend secret name
+    secretName: my-database-secret
+
+    # -- Stage name and ID from DB
+    stageNames: {}
+
+    extraMetrics:
+      # -- Enable extra metrics
+      enabled: false
+      configMap:
+        # -- ConfigMap name for extra metrics
+        name: scaler-extra-metrics-config
+        # -- ConfigMap data for extra metrics
+        data: {}
+
+  prometheus:
+    # -- Enable prometheus backend
+    enabled: true
+    # -- Prometheus backend url
+    url: http://prometheus.default.svc.cluster.local
+    
+  resourceManagerMetrics:
+    # -- Enable resource manager metrics backend
+    enabled: false
+    # -- Resource manager metrics backend url
+    url: http://resource-manager-metrics:8080/metrics

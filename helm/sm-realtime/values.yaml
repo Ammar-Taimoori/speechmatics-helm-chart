@@ -1,0 +1,711 @@
+global:
+  # -- Cluster name (This is required for multi-cluster setups)
+  cluster: test
+
+  imagePullSecrets:
+    # -- List of image pull secrets to use
+    # - name: "speechmatics-registry"
+
+  speechmaticsRegistry:
+    createSecret: true
+    secretName: speechmatics-registry
+  # Common licensing values for inference server and transcribers (and for Flow and TTS if enabled)
+  licensing:
+    # -- Secret name to read license from
+    secretName: speechmatics-license
+
+    # -- Create secret for license or read from existing secret
+    createSecret: false
+
+    # -- Base64 encoded license file
+    license: "ewogICAgImNsaWVudGlkIjogIiIsCiAgICAiY29tbWVudCI6ICJUaWNrZXQgMTAzNDAwIiwKICAgICJjb250cmFjdGlkIjogIjEzMDAiLAogICAgImNyZWF0aW9uZGF0ZSI6ICIyMDI1LTEwLTA2IDEzOjI4OjU5IiwKICAgICJjdXN0b21lciI6ICJub3ZpdGFzIiwKICAgICJpZCI6ICI2ZDkzYTMyODcxZDE0ZjIwYTU0MDdiNDRmYTFmMmI5NiIsCiAgICAibGljZW5zZXR5cGUiOiAiUHJvZHVjdGlvbiIsCiAgICAibWV0YWRhdGEiOiB7CiAgICAgICAgImtleV9wYWlyX2lkIjogMSwKICAgICAgICAicmVxdWVzdCI6IHsKICAgICAgICAgICAgImNsaWVudGlkIjogIiIsCiAgICAgICAgICAgICJjb21tZW50IjogIlRpY2tldCAxMDM0MDAiLAogICAgICAgICAgICAiY29udHJhY3RpZCI6ICIxMzAwIiwKICAgICAgICAgICAgImN1c3RvbWVyIjogIm5vdml0YXMiLAogICAgICAgICAgICAiZmVhdHVyZXMiOiBbCiAgICAgICAgICAgICAgICAiTUFQUlQiLAogICAgICAgICAgICAgICAgIk1BUEJBIiwKICAgICAgICAgICAgICAgICJBTUNDIiwKICAgICAgICAgICAgICAgICJBUEQiLAogICAgICAgICAgICAgICAgIkFQUiIsCiAgICAgICAgICAgICAgICAiQVNTIiwKICAgICAgICAgICAgICAgICJBT1AyIiwKICAgICAgICAgICAgICAgICJBTElEIiwKICAgICAgICAgICAgICAgICJMQU5ZIgogICAgICAgICAgICBdLAogICAgICAgICAgICAibm90VmFsaWRBZnRlciI6ICIyMDI3LTA5LTI3IiwKICAgICAgICAgICAgInZhbGlkRnJvbSI6ICIyMDI1LTEwLTA2IgogICAgICAgIH0KICAgIH0sCiAgICAic2lnbmVkY2xhaW1zdG9rZW4iOiAiZXlKaGJHY2lPaUpTVXpJMU5pSXNJblI1Y0NJNklrcFhWQ0o5LmV5Sm1aV0YwZFhKbGN5STZXeUpOUVZCU1ZDSXNJazFCVUVKQklpd2lRVTFEUXlJc0lrRlFSQ0lzSWtGUVVpSXNJa0ZUVXlJc0lrRlBVRElpTENKQlRFbEVJaXdpVEVGT1dTSmRMQ0pqYjI1MGNtRmpkR2xrSWpvaU1UTXdNQ0lzSW1selgzUnlhV0ZzSWpwbVlXeHpaU3dpWlhod0lqb3hPREl5TURBek1qQXdMQ0pxZEdraU9pSTJaRGt6WVRNeU9EY3haREUwWmpJd1lUVTBNRGRpTkRSbVlURm1NbUk1TmlJc0ltbGhkQ0k2TVRjMU9UYzFOek16T1N3aWFYTnpJam9pVTNCbFpXTm9iV0YwYVdOeklpd2libUptSWpveE56VTVOekE0T0RBd0xDSnpkV0lpT2lKdWIzWnBkR0Z6SW4wLm83R3VXTk84Zk9Od1BuTDFXeUhQR2gyNFhSa0QtelF6eml5d0VkVHFrNHgzV1JLTFVxb0kzWlFiOTFSeE9na0dySWxacWk3ck9OaE50WXYxZFZvc044eG1yTDJuaEJlc0Ixd2xCTUZvVFpLMnhFM25DRWk2UWhQUUtQV1p1YURnZXRCc2dFR2VhOXlVWTNweFBnYnBCRGNOS0Z0cnVhdzd4b2tSVTNtLUJUQ0Q0V1NsaEM4LUZSc2plRTF2cVBjYklqdHU5RG1SUkIyOTVKNzZjRGhVQlM0T3JwOF91T215ZEstVVE5bFN3X2NqLWEtMXh0cW9PbzlQaE1TTTdicXR2X0pDbEYzck11aC14UkhhaGV6UFFLb3d4N2hRdEVHZ2dUQnJCWUFWczhocWdINTh2MmhkVzdXTHVjU0xLRC1iSWhVWU1qMjlBbzF1WGJ6emZQb2Y5ZyIsCiAgICAidW5pdHF1YW50aXR5IjogIiIsCiAgICAidW5pdHR5cGUiOiAiSG91cnMiLAogICAgInZlcnNpb24iOiAxCn0="
+
+  # -- Common transcriber/inference server configuration
+  transcriber:
+    # -- List of languages supported by environment
+    languages: ["ar"]
+
+    image:
+      # -- Registry to pull images from
+      registry: speechmaticspublic.azurecr.io
+
+      # -- Image tag for both transcribers and inference server
+      tag: 14.2.0
+
+  # -- Common resource manager components configuration
+  resourceManager:
+    # -- Target URL for separately-managed resource manager
+    # url: ""
+
+    # -- Resource manager image configuration
+    image:
+      # -- Registry to pull images from
+      registry: speechmaticspublic.azurecr.io
+
+      # -- Version of resource manager components and sidecars (defaults to appVersion)
+      tag: 1.34.6-1307912
+      
+  # List of languages supported by environment. If not defined will default list in workers.transcriber
+  # This will not control the transcribers deployed but just the languages supported by the deployment
+  config:
+    enabled: true
+    # languages: ["sv"]
+
+  # -- Enable deployment of all components as session groups
+  sessionGroups:
+    # -- Enable deployment of components as session groups
+    enabled: true
+
+    scaling:
+      # -- Enable auto-scaling of sessiongroup components
+      enabled: false
+
+  proxy:
+    image:
+      # -- Registry to pull images from
+      registry: speechmaticspublic.azurecr.io
+
+      # -- Image tag for proxy component
+      tag: 2.8.9-1308950
+
+  flow:
+    image:
+      # -- Registry to pull images from
+      registry: speechmaticspublic.azurecr.io
+
+      # -- Image tag for Flow service component
+      tag: 0.27.4-1305499
+
+    # -- Connect local ASR workers from Flow workers
+    flowUseLocalTranscriber: true
+
+  tts:
+    image:
+      # -- Registry to pull images from
+      registry: speechmaticspublic.azurecr.io
+
+      # -- Image tag for TTS component
+      tag: 1.1.0
+
+#######################
+# RESOURCE MANAGER
+#######################
+resourceManager:
+  enabled: true
+
+  # fullnameOverride needed otherwise chart will try to create SA with same name as sm-transcriber chart
+  fullnameOverride: resource-manager
+
+  service:
+    port: 8080
+
+  ingress:
+    enabled: false
+
+  # -- Enable Reconcialiation service
+  reconciliation:
+    enabled: true
+
+    # -- Enable repopulation of sessions from database
+    repopulation:
+      enabled: false
+
+    podSelectorConfigMap:
+      # -- Read config values for pod_selector_list from configMap
+      enabled: true
+
+  sessionGroups:
+    # -- Enable session groups controller
+    enabled: true
+
+    # -- Higher startup probe time to allow Redis to start
+    startupProbe:
+      httpGet:
+        path: /healthz
+        port: 8081
+      periodSeconds: 15
+      failureThreshold: 20
+
+  metrics:
+    workerMonitor:
+      # -- Enable monitoring of worker CPU and Memory usage, logging when usage exceeds thresholds
+      enabled: false
+      conditionMetrics: "none"
+
+  redis:
+    master:
+      presistence:
+        existingClaim: redis-speechmatics-data
+      tolerations:
+        - key: "node"
+          operator: "Equal"
+          value: "speechmatics"
+          effect: "NoSchedule"
+      nodeSelector:
+        dedicated: "speechmatics"
+    # -- Connection timeout for Redis
+    timeoutConnection: "10m"
+
+    # -- Enable redis for resource-manager to manage sessions
+    enabled: true
+
+  # -- Startup probe to allow for slow start times of Redis
+  startupProbe:
+    httpGet:
+      path: /ready
+      port: 8080
+    failureThreshold: 50
+    periodSeconds: 15
+
+#####################
+# PROXY
+#####################
+proxy:
+  # -- Enable proxy service
+  enabled: true
+  fullnameOverride: proxy
+
+  # Configuration of proxy-service container
+  proxy:
+    deployments:
+      # -- List of deployments of proxy
+      a:
+        # -- Enable sessions to this deployment
+        active: true
+
+    dns:
+      # -- Enable DNS SRV lookup from external DNS source
+      enabled: false
+      # -- Default SRV record to use for proxy service; target should match with service name of resource manager
+      defaultSrvRecords: []
+        # - target: resource-manager
+        #   port: 8080
+        #   priority: 1
+        #   weight: 1
+
+    # -- Copy headers from incoming request to outgoing request
+    copyAllHeaders: true
+
+    config:
+      # -- Set proxy service to run in on-prem mode
+      isOnPrem: true
+
+      # -- Allow insecure websocket connections
+      useInsecureWebsockets: true
+
+      # -- Handle only local worker connection
+      workerConnectionType: local
+
+      auth:
+        # -- Enable proxy to handle authentication
+        enabled: false
+
+      customDictionaryCapture:
+        # -- Store custom dictionaries externally
+        enabled: false
+
+      deadlines:
+        # -- Enable session deadlines
+        enabled: false
+
+      quotaCaching:
+        # -- Enable quota caching
+        enabled: false
+
+      # -- Additional configuration variables for proxy
+      additionalConfig: {}
+
+  events:
+    # -- Enable sending events to eventhub
+    enabled: false
+
+  storage:
+    # -- Enable storage of custom dictionary
+    enabled: false
+
+  # Manage resource manager config from ConfigMap
+  resourceManager:
+    configMap:
+      # -- Read resource-manager server information from configMap
+      enabled: true
+
+  ingress:
+    # -- Add ingress
+    enabled: true
+
+    flow:
+      # -- Enable Flow in ingress
+      enabled: true
+
+    # -- Ingress class to use
+    ingressClassName: nginx
+
+    # -- Ingress URL
+    url: speechmatics.example.com
+
+    # annotations for main proxy ingress
+    annotations:
+      nginx.ingress.kubernetes.io/configuration-snippet: |+
+        # Adds the request ID header to the response, so the user can see it.
+        more_set_headers "Request-Id: $req_id";
+      nginx.ingress.kubernetes.io/use-regex: "true"
+
+  agentAPI:
+    enabled: true
+
+    # -- Use remote endpoint to fetch agent configuration
+    useRemote: false
+    # -- Use local file system to fetch agent configuration
+    useLocal: true
+
+    configMap:
+      # -- Enable reading agent configuration from configMap
+      enabled: true
+
+      # -- configMap data with one or more agent configurations
+      # @default -- `chart will add a default agent configuration`
+      data:
+        32f4725b-fde5-4521-a57c-e899e245d0b0_latest.json: |
+          {
+            "agent_id": "32f4725b-fde5-4521-a57c-e899e245d0b0",
+            "name": "Jean",
+            "version": "latest",
+            "tts_config": {
+              "preset": "SpeechmaticsTTS:american-female"
+            },
+            "asr_config": {
+              "language": "en",
+              "additional_vocab": [
+                  {
+                      "content": "Jean",
+                      "sounds_like": [
+                          "Gene"
+                      ]
+                  }
+              ]
+            },
+            "instructions": {
+              "prompt": "You are an American female called Jean.\n\n# Style of responses:\nBe polite and always mirror the user's tone of voice and seriousness.\nCreate an engaging and natural conversation with the user.\n",
+              "first_message": "Hello",
+              "agent_speaks_first": true
+            }
+          }
+
+#####################
+# TRANSCRIBERS
+#####################
+transcribers:
+  # Set to false to just run as resource-manager
+  enabled: true
+  fullnameOverride: rt-transcriber
+
+  readinessTracker:
+    # -- Restart transcriber after N sessions
+    restartAfterNSessions: 0
+
+    preWarm:
+      # -- Run a pre-warm session on start to improve startup connection times
+      enabled: true
+
+      # -- Operating point used for the preWarm session
+      operatingPoint: enhanced
+
+      # -- Run preWarm for a pod after every session
+      everySession: false
+
+  workerProxy:
+    # -- Environment variables to add to worker-proxy container
+    env: []
+
+    # -- Check that there is inference server capacity before allowing transcribers to start
+    # checkForCapacityOnStart: false
+
+  transcriber:
+    # -- Mode to run transcribers in (rt or batch)
+    mode: rt
+
+    maxConcurrentConnections:
+      # -- Number of sessions to allow per transcriber pod
+      value: 2
+
+    # -- Environment variables to add to transcriber container
+    env:
+      - name: SM_ON_PREM
+        value: "true"
+      - name: SM_WEBSOCKET_CONFIG
+        value: |
+          {
+            "autoPingTimeout": 300
+          }
+      - name: SM_INFERENCE_RESPONSE_TIMEOUT_MS
+        value: "900000"
+
+  # Manage resource manager config from ConfigMap
+  resourceManager:
+    configMap:
+      # -- Read resource-manager server information from configMap
+      enabled: true
+
+  sessionGroups:
+    scaling:
+      # -- Buffer size # of sessions to start triggering scaling
+      scaleOnCapacityLeft: 1
+
+  eats:
+    # -- Enable usage reporting to "usage.speechmatics.com" endpoint.
+    enableUsageReporting: true
+
+#################################
+# INFERENCE SERVER STANDARD ALL
+#################################
+inferenceServerStandardAll:
+  # -- Enable deployment of inference server with standard model recipe
+  enabled: false
+  fullnameOverride: inference-server-standard-all
+
+  tritonServer:
+    image:
+      # -- Repository for the inference server triton container
+      repository: sm-gpu-inference-server-standard-all
+      tag: 14.2.0
+
+    # -- Mode to run inference servers in (rt or batch)
+    mode: rt
+
+    # -- Operating point can be standard or enhanced or set null to support both
+    operatingPoint: standard
+    # -- Set to standard-all to deploy Srandard model recipe
+    recipe: standard-all
+
+  inferenceSidecar:
+    # -- Enable deploying inference sidecar for inference servers
+    enabled: true
+
+    registerFeatures:
+      # -- Total capacity of inference server in terms of model cost
+      capacity: 2400
+
+      modelCosts:
+        # -- Cost of am model request
+        am: 0
+        # -- Cost of diar model request
+        diar: 0
+        # -- Cost of body model request
+        body: 0
+        # -- Cost of Non-English ensemble model request
+        ensemble: 20
+        # -- Cost of English ensemble model request
+        ensemble_en: 16
+
+      # -- Map of additional models to include under model_costs
+      additionalModelCosts: {}
+
+    resourceManager:
+      configMap:
+        # -- Enable reading resource-manager server information from configMap
+        enabled: true
+
+#####################################
+# INFERENCE SERVER ENHANCED RECIPE1
+#####################################
+inferenceServerEnhancedRecipe1:
+  # -- Enable deployment of inference server with enhanced model recipe 1
+  enabled: false
+  fullnameOverride: inference-server-enhanced-recipe1
+
+  tritonServer:
+    image:
+      # -- Repository for the inference server triton container
+      repository: sm-gpu-inference-server-enhanced-recipe1
+
+    # -- Mode to run inference servers in (rt or batch)
+    mode: rt
+
+    # -- Operating point can be standard or enhanced or set null to support both
+    operatingPoint: enhanced
+    # -- Set to enhanced-recipe1 to deploy Enhanced model recipe 1
+    recipe: enhanced-recipe1
+
+  inferenceSidecar:
+    # -- Enable deploying inference sidecar for inference servers
+    enabled: true
+
+    registerFeatures:
+      # -- Total capacity of inference server in terms of model cost
+      capacity: 480
+
+      modelCosts:
+        # -- Cost of English lm model request (Recipe 1)
+        lm_en: 8
+        # -- Cost of am model request
+        am: 0
+        # -- Cost of diar model request
+        diar: 0
+        # -- Cost of body model request
+        body: 0
+        # -- Cost of Non-English ensemble model request
+        ensemble: 20
+        # -- Cost of English ensemble model request  (Recipe 1)
+        ensemble_en: 16
+
+      # -- Map of additional models to include under model_costs
+      additionalModelCosts: {}
+
+    resourceManager:
+      configMap:
+        # -- Enable reading resource-manager server information from configMap
+        enabled: true
+
+#####################################
+# INFERENCE SERVER ENHANCED RECIPE2
+#####################################
+inferenceServerEnhancedRecipe2:
+  # -- Enable deployment of inference server with enhanced model recipe 2
+  enabled: false
+  fullnameOverride: inference-server-enhanced-recipe2
+
+  tritonServer:
+    image:
+      # -- Repository for the inference server triton container
+      repository: sm-gpu-inference-server-enhanced-recipe2
+
+    # -- Mode to run inference servers in (rt or batch)
+    mode: rt
+
+    # -- Operating point can be standard or enhanced or set null to support both
+    operatingPoint: enhanced
+    # -- Set to enhanced-recipe2 to deploy Enhanced model recipe 2
+    recipe: enhanced-recipe2
+
+  inferenceSidecar:
+    # -- Enable deploying inference sidecar for inference servers
+    enabled: true
+
+    registerFeatures:
+      # -- Total capacity of inference server in terms of model cost
+      capacity: 480
+
+      modelCosts:
+        # -- Cost of Spanish lm model request (Recipe 2)
+        lm_es: 9
+        # -- Cost of am model request
+        am: 0
+        # -- Cost of diar model request
+        diar: 0
+        # -- Cost of body model request
+        body: 0
+        # -- Cost of Non-Spanish ensemble model request
+        ensemble: 20
+        # -- Cost of Spanish ensemble model request  (Recipe 2)
+        ensemble_es: 17
+
+      # -- Map of additional models to include under model_costs
+      additionalModelCosts: {}
+
+    resourceManager:
+      configMap:
+        # -- Enable reading resource-manager server information from configMap
+        enabled: true
+
+#####################################
+# INFERENCE SERVER ENHANCED RECIPE3
+#####################################
+inferenceServerEnhancedRecipe3:
+  # -- Enable deployment of inference server with enhanced model recipe 3
+  enabled: false
+  fullnameOverride: inference-server-enhanced-recipe3
+
+  tritonServer:
+    image:
+      # -- Repository for the inference server triton container
+      repository: sm-gpu-inference-server-enhanced-recipe3
+
+    # -- Mode to run inference servers in (rt or batch)
+    mode: rt
+
+    # -- Operating point can be standard or enhanced or set null to support both
+    operatingPoint: enhanced
+    # -- Set to enhanced-recipe3 to deploy Enhanced model recipe 3
+    recipe: enhanced-recipe3
+
+  inferenceSidecar:
+    # -- Enable deploying inference sidecar for inference servers
+    enabled: true
+
+    registerFeatures:
+      # -- Total capacity of inference server in terms of model cost
+      capacity: 480
+
+      modelCosts:
+        # -- Cost of German lm model request (Recipe 3)
+        lm_de: 9
+        # -- Cost of am model request
+        am: 0
+        # -- Cost of diar model request
+        diar: 0
+        # -- Cost of body model request
+        body: 0
+        # -- Cost of Non-German ensemble model request
+        ensemble: 20
+        # -- Cost of German ensemble model request  (Recipe 3)
+        ensemble_de: 17
+
+      # -- Map to define model costs for custom recipe type
+      customModelCosts: {}
+
+    resourceManager:
+      configMap:
+        # -- Enable reading resource-manager server information from configMap
+        enabled: true
+
+#####################################
+# INFERENCE SERVER ENHANCED RECIPE4
+#####################################
+inferenceServerEnhancedRecipe4:
+  # -- Enable deployment of inference server with enhanced model recipe 4
+  enabled: true
+  fullnameOverride: inference-server-enhanced-recipe4
+
+  tritonServer:
+    image:
+      # -- Repository for the inference server triton container
+      repository: sm-gpu-inference-server-enhanced-recipe4
+      tag: 14.2.0
+
+    # -- Mode to run inference servers in (rt or batch)
+    mode: rt
+
+    # -- Operating point can be standard or enhanced or set null to support both
+    operatingPoint: enhanced
+    # -- Set to enhanced-recipe4 to deploy Enhanced model recipe 4
+    recipe: enhanced-recipe4
+
+  inferenceSidecar:
+    # -- Enable deploying inference sidecar for inference servers
+    enabled: true
+
+    registerFeatures:
+      # -- Total capacity of inference server in terms of model cost
+      capacity: 480
+
+      modelCosts:
+        # -- Cost of French lm model reques (Recipe 4)
+        lm_fr: 9
+        # -- Cost of am model request
+        am: 0
+        # -- Cost of diar model request
+        diar: 0
+        # -- Cost of body model request
+        body: 0
+        # -- Cost of Non-French ensemble model request
+        ensemble: 20
+        # -- Cost of French ensemble model request  (Recipe 4)
+        ensemble_fr: 17
+
+      # -- Map of additional models to include under model_costs
+      additionalModelCosts: {}
+
+    resourceManager:
+      configMap:
+        # -- Enable reading resource-manager server information from configMap
+        enabled: true
+
+###########################
+# INFERENCE SERVER CUSTOM
+###########################
+inferenceServerCustom:
+  # -- Enable deployment of inference server with custom model recipe
+  enabled: false
+  fullnameOverride: inference-server-custom
+
+  tritonServer:
+    image:
+      # -- Repository for the inference server triton container
+      repository: sm-gpu-inference-server-enhanced-recipe1
+
+    # -- Mode to run inference servers in (rt or batch)
+    mode: rt
+
+    # -- Operating point can be standard or enhanced or set null to support both
+    operatingPoint: enhanced
+    # -- Recipe can be standard-all, enhanced-recipe1, enhanced-recipe2, enhanced-recipe3, enhanced-recipe4 or custom
+    recipe: custom
+
+  inferenceSidecar:
+    # -- Enable deploying inference sidecar for inference servers
+    enabled: true
+
+    registerFeatures:
+      # -- Total capacity of inference server in terms of model cost
+      capacity: 480
+
+      # -- Map to define model costs for custom recipe type
+      customModelCosts: {}
+
+    resourceManager:
+      configMap:
+        # -- Enable reading resource-manager server information from configMap
+        enabled: true
+
+###########################
+# Flow Service
+###########################
+flow:
+  # -- Enable deployment of Flow service
+  enabled: false
+
+  fullnameOverride: flow-service
+
+  config:
+    tts:
+      sm:
+        enabled: true
+
+    llm:
+      llmProxy:
+        modelGroup: vllm
+
+  llmProxy:
+    # -- Enable deployment of LLM proxy
+    enabled: true
+    fullnameOverride: llm-proxy
+    isOnPrem: true
+
+    # -- LLM proxy configuration
+    config:
+      model_list:
+        - model_name: vllm
+          llm_params:
+            url: http://llm:8000/v1/chat/completions
+            model: meta-llama/Llama-3.2-3B-Instruct
+
+  tts:
+    # -- Enable deployment of TTS
+    enabled: true
+    fullnameOverride: tts
+
+  vllm:
+    # -- Enable deployment of vLLM
+    enabled: true
+    fullnameOverride: llm
+
+    config:
+      # -- Model to use for vLLM
+      model: meta-llama/Llama-3.2-3B-Instruct
+
+    hfTokenSecret:
+      # -- Create secret for Hugging Face token or read from existing secret
+      createSecret: false
+      # -- Secret name to read Hugging Face token from
+      secretName: vllm-secret
+      # -- Base64 encoded Hugging Face token
+      token: ""
+
+proxy:
+  tolerations:
+    - key: "node"
+      operator: "Equal"
+      value: "speechmatics"
+      effect: "NoSchedule"
+  nodeSelector:
+        dedicated: "speechmatics"

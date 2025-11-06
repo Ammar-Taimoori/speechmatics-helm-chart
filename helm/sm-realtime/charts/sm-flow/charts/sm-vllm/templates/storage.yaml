@@ -1,0 +1,19 @@
+{{- $name := include "sm-vllm.fullname" . }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ printf "%s-cache-pvc" $name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- with .Values.storage.accessModes }}
+  accessModes:
+    {{- toYaml . | nindent 2 }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.size }}
+  {{- with .Values.storage.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+  volumeMode: {{ .Values.storage.volumeMode }}

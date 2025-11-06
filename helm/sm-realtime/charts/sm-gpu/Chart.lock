@@ -1,0 +1,9 @@
+dependencies:
+- name: prometheus
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 27.25.0
+- name: sm-scaling
+  repository: file://../sm-scaling
+  version: 0.0.4
+digest: sha256:3d67b1d40212f1589f1b8f12083de3c627fb76a86f00286dbac46497a6055035
+generated: "2025-07-18T09:46:53.624645259Z"

@@ -1,0 +1,107 @@
+---
+{{- if .Values.config.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sm-proxy.config" . }}
+  labels:
+    {{- include "sm-proxy.labels" . | nindent 4 }}
+data:
+{{- with .Values.proxy.config }}
+{{- if .isOnPrem }}
+  SM_ON_PREM: {{ .isOnPrem | quote }}
+{{- end }}
+  SM_WORKER_CONNECTION_TYPE: {{ .workerConnectionType }}
+  SM_LOCAL_RUNTIME_HOSTNAME: {{ .localRuntimeHostname }}
+{{- if .deadlines.enabled }}
+  SM_ZOMBIE_DEADLINE_CONFIG_JSON: {{ .deadlines.zombie | toJson | squote }}
+  SM_MAX_DURATION_DEADLINE_CONFIG_JSON: {{ .deadlines.maxDuration | toJson | squote }}
+{{- else }}
+  SM_ZOMBIE_DEADLINE_CONFIG_JSON: '{"deadline_duration":"-1s"}'
+  SM_MAX_DURATION_DEADLINE_CONFIG_JSON: '{"deadline_duration":"-1s"}'
+{{- end }}
+{{- if .useInsecureWebsockets }}
+  WEB_SOCKET_SCHEME: "ws"
+{{- end }}
+{{- if .quotaCaching.enabled }}
+  SM_CONCURRENT_CONN_CACHING_ENABLED: "true"
+  SM_CONN_USAGE_QUERY_RETRY_COUNT: {{ .quotaCaching.queryRetryCount | quote }}
+  SM_CONN_USAGE_QUERY_RETRY_INTERVAL_SEC: {{ .quotaCaching.queryRetryIntervalSec | quote }}
+  SM_MIN_QUOTA_DECREMENT_DURATION_SEC: {{ .quotaCaching.minDecrementDurationSec | quote }}
+  CONNECTION_QUOTA_CACHE_CHECK_TIMEOUT_MILLI: {{ .quotaCaching.queryTimeoutMilliSec | quote}}
+{{- else }}
+  SM_CONCURRENT_CONN_CACHING_ENABLED: "false"
+{{- end }}
+{{- if .auth.enabled }}
+{{- with .auth.url }}
+  SM_AUTH_SERVICE_URL: {{ . }}
+{{- end  }}
+{{- else  }}
+  AUTHORIZE_CLIENT_IN_PROXY:  "false"
+{{- end }}
+{{- if .customDictionaryCapture.enabled }}
+{{- if not $.Values.storage.enabled }}
+  {{- fail "customDictionaryCapture requires storage to be enabled" }}
+{{- end }}
+{{- else }}
+  SM_ENABLE_CUSTOM_DICTIONARY_CAPTURE: "false"
+{{- end }}
+{{- with .maxChannelsPerSession }}
+  SM_MAX_CHANNELS_PER_SESSION: {{ . | quote }}
+{{- end }}
+{{- if .flowTemplateInfo }}
+  SM_FLOW_TEMPLATE_INFO_JSON: {{ .flowTemplateInfo | fromYaml | toJson | squote }}
+{{- end }}
+{{- with $.Values.agentAPI -}}
+{{- if (and .enabled .useLocal) }}
+  SM_AGENT_LOCAL_PATH: {{ .localPath }}
+{{- end }}
+{{- end }}
+{{- with .additionalConfig }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
+{{- end }}
+---
+{{- if .Values.proxy.dns.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sm-proxy.dns" . }}
+  labels:
+    {{- include "sm-proxy.labels" . | nindent 4 }}
+data:
+  dnssrv: {{ toJson (dict "service" .Values.proxy.dns.service "proto" "tcp" "name" .Values.proxy.dns.name) | squote }}
+{{- end }}
+---
+{{- if .Values.proxy.customDict.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sm-proxy.customDictConfig" . }}
+  labels:
+    {{- include "sm-proxy.labels" . | nindent 4 }}
+{{- with .Values.proxy.customDict.data }}
+data:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
+{{- if .Values.agentAPI.configMap.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sm-proxy.agentConfig" . }}
+  namespace: {{ .Release.Namespace }}
+data:
+{{- range $key, $value := .Values.agentAPI.configMap.data }}
+  {{- (hasSuffix ".json" $key) | ternary $key (printf "%s.json" $key) | nindent 2 }}: |
+{{- if (kindIs "string" $value) }}
+  {{- $value | nindent 4 }}
+{{- else if (kindIs "map" $value) }}
+  {{- $value | toPrettyJson | nindent 4 }}
+{{- else }}
+  {{- fail "Not a valid format for template data" }}
+{{- end }}
+{{- end }}
+{{- end }}

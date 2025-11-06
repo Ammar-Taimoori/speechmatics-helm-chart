@@ -1,0 +1,19 @@
+{{- if .Values.tests.enabled }}
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "sm-gpu.fullname" . }}-test-connection"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-gpu.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args: ['{{ include "sm-gpu.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.ports.http | default 8000 }}/v2/health/ready']
+  restartPolicy: Never
+{{- end }}

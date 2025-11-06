@@ -1,0 +1,757 @@
+global:
+  transcriber:
+    image:
+      # -- Registry to use for transcriber containers
+      registry: speechmaticsproduction.azurecr.io
+
+      # -- tag will default to .Chart.AppVersion
+      # tag: ""
+
+    # -- List of languages to support (defaults to GPU languages)
+    languages: []
+
+  resourceManager:
+    # -- URL of resource manager instance
+    url: http://resource-manager:8080
+
+    image:
+      registry: speechmaticsproduction.azurecr.io
+      tag: 1.36.17-1329687
+
+  licensing:
+    # -- Name of the secret to look for a license
+    secretName: speechmatics-license
+
+    # -- Have the chart manage the license secret
+    createSecret: false
+
+    # -- B64 encoded license to store in secret
+    license: ""
+
+    # -- Remote secret key when using external secrets
+    secretKey: ""
+
+    # -- Remote secret property when using external secrets
+    secretProperty: ""
+
+  sessionGroups:
+    # -- Deploy containers in SessionGroups instead of Deployments
+    enabled: true
+
+    scaling:
+      # -- Enable autoscaling of session groups
+      enabled: false
+
+  flow:
+    # -- Accept flow related engine configurations
+    flowUseLocalTranscriber: false
+
+  batch:
+    internalApi:
+      # -- API url endpoint for batch workers
+      url: http://api:8080/v2/jobs
+
+    image:
+      registry: speechmaticsproduction.azurecr.io
+      tag: 7.17.33-1328178
+
+readinessTracker:
+  # -- Deploy readiness-tracker sidecar on transcribers
+  enabled: true
+
+  image:
+    # -- Repository name for readiness tracker
+    repository: readiness-tracker
+
+  env: []
+
+  # -- Restart transcriber after N sessions
+  restartAfterNSessions: 0
+
+  # -- Enable monitoring of pod status to de-register transcriber features
+  registerConditions: false
+
+  # -- Prefix to add for language model in register feature (only for Batch mode)
+  featurePrefix: ""
+
+  # -- Prefix to add for version in register feature and to check for inference server tokens (only for Batch mode)
+  versionPrefix: ""
+
+  # -- Production feature to pre-warm transcriber with enhanced sessions to reduce connection times
+  preWarm:
+    enabled: false
+    useAudio: true
+    everySession: false
+    operatingPoint: enhanced
+    contractId: "-77777777777777"
+    preWarmOnly: false
+
+  resources:
+    requests:
+      cpu: 10m
+      memory: 15Mi
+
+# Enabled for GPU workers
+workerProxy:
+  # -- Deploy worker-proxy sidecar container on transcribers
+  enabled: true
+
+  image:
+    repository: worker-proxy
+
+  # -- Check for inference-server capacity before allowing transcriber to start
+  checkForCapacityOnStart: false
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 200Mi
+    requests:
+      cpu: 10m
+      memory: 15Mi
+
+  # -- Readiness probe for worker-proxy
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 8024
+    periodSeconds: 15
+    timeoutSeconds: 10
+    failureThreshold: 3
+
+  # -- Startup probe for worker-proxy
+  startupProbe:
+    httpGet:
+      path: /ready
+      port: 8024
+    periodSeconds: 1
+    timeoutSeconds: 10
+    failureThreshold: 180
+
+transcriber:
+  # -- Operating mode of transcriber (possible modes are rt or batch)
+  mode: rt
+
+  nodeSelector: {}
+  env: []
+  additionalAnnotations: {}
+  additionalPodAnnotations: {}
+  additionalLabels: {}
+  additionalPodLabels: {}
+  useRecreateStrategy: false
+
+  # -- Lease duration for repopulation in worker-proxy and readiness-tracker
+  leaseDuration: 5m
+
+  image:
+    # -- This is used as an image prefix and will be appended with `-LANG` based on languages
+    repository: rt-asr-transcriber
+
+  # -- Image pull policy for the transcriber images
+  imagePullPolicy: IfNotPresent
+
+  # -- Allow runAsUser, runAsGroup, fsGroup etc to pass through
+  securityContext: {}
+
+  ports:
+    # -- Port to expose for the transcriber
+    containerPort: 9000
+    # -- Port to expose for the health endpoint in transcriber
+    healthPort: 8001
+
+  livenessProbe:
+    httpGet:
+      path: /live
+      port: health-port
+      scheme: HTTP
+    periodSeconds: 20
+    successThreshold: 1
+    failureThreshold: 6
+    timeoutSeconds: 19
+    initialDelaySeconds: 2
+
+  # -- Tolerations for transcriber pods
+  tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+
+  # -- Termination grace period for transcriber pod
+  terminationGracePeriodSeconds: 30
+
+  # -- Speechmatics license secret configuration
+  licensing:
+    {}
+    # secretName: speechmatics-license
+    # createSecret: false
+    # license: b64encoded license json
+
+  # PreWarm in engine for required operating point
+  preWarm:
+     # -- Enable engine preWarm for required operating point
+    enabled: false
+
+    # -- Comma separated list of operating point to preWarm
+    operatingPoint: enhanced
+
+  # Enable caching on the transcriber
+  cdCache:
+    # -- Enable caching of custom dictionary
+    enabled: false
+
+    # -- Type of CD caching. Can be one of "simple", "http" or "shared"
+    type: "http"
+
+    # volume:
+    #   mountPath: /test
+
+  speakerId:
+    # -- Enable speaker ID on transcriber
+    enabled: false
+
+    # When using external secrets value is key-vault ref
+    keys:
+      s.1: speaker-id-s1
+
+    # When not using external secrets value base64 encoded values
+    # keys:
+    #   s.1: B64_secret.1
+
+    secretName: speaker-id
+
+  autoscaling:
+    enabled: false
+
+    replicas:
+      bufferSize: 2
+      minReplicas: 2
+      maxReplicas: 50
+
+  # Processor specific configuration
+  processors:
+    gpu:
+      # -- Environment variables to configure specifically on GPU transcribers
+      env: []
+
+      # -- Node selectors specifically for GPU transcribers
+      nodeSelector: {}
+
+      # -- Tolerations specifically for GPU transcribers
+      tolerations: []
+
+      # -- Resources specifically for GPU transcribers not defined under languages.overrides.resources
+      resources:
+        requests:
+          cpu: 300m
+          memory: 3.5Gi
+
+    cpu:
+      env: []
+      nodeSelector: {}
+      tolerations: []
+
+      # -- Resources specifically for CPU transcribers not defined under languages.overrides.resources
+      resources:
+        requests:
+          cpu: 1150m
+          memory: 2Gi
+
+  maxConcurrentConnections:
+    configMap:
+      enabled: false
+    value: 1
+
+  # maxRecognizers: 2
+
+  mountModels:
+    # -- Mount models from storage
+    enabled: false
+    # -- Storage provider for mounting models
+    provider: azureblob
+    # -- Azure blob storage provider details
+    azureBlob:
+      # -- Azure blob storage resource group
+      resourceGroup: blob-resource-group
+      # -- Azure blob storage account name
+      storageAccount: blob-storage-account
+      # -- Azure blob storage container name
+      dataContainerName: data-blob-container-name
+
+      # -- Remote key-vault ref for storage account name when using external secrets
+      storageAccountNameRemoteRef: "model-storage-name"
+      # -- Remote key-vault ref for storage account key when using external secrets
+      storageAccountKeyRemoteRef: "model-storage-key"
+
+      # -- Base64 storage account name when not using external secrets
+      storageAccountName: "B64_model-storage-name"
+      # -- Base64 storage account key when not using external secrets
+      storageAccountKey: "B64_model-storage-key"
+
+  languages:
+    # -- CPU languages to support
+    cpuLanguages: []
+    # -- GPU languages to support
+    gpuLanguages: []
+    # -- GPU recipes to support
+    gpuRecipes: {}
+      # en_es:
+      #   languages: ["en", "es"]
+      #   preWarmLanguages: ["en", "es"]
+
+    # Override config based on transcriber language
+    overrides:
+      autoscaling:
+        {}
+        # en:
+        #   bufferSize: 4
+        #   minReplicas: 1
+        #   maxReplicas: 50
+      sessionGroupsScaling:
+        {}
+        # en:
+        #   enabled: false
+        #   maxReplicas: 20
+        #   minReplicas: 1
+        #   scaleDownDelay: 10s
+        #   scaleOnCapacityLeft: 5 # or scaleOnPodsLeft, which supports decimals
+
+      sessionGroupsDefrag:
+        {}
+        # en:
+        #   enabled: false
+        #   maxIdlePodsOnScaleUp: 1
+
+      sessionGroupsRollout:
+        {}
+        # en:
+        #   allowedSurge: 1
+        #   maxPodsCreateAtOnce: 3
+
+      # -- Maximum number of concurrent connections for each language
+      maxConcurrentConnections:
+        {}
+        # en: 4
+        # es: 2
+
+      # -- Maximum number of recognizers for each language, defaults to maxConcurrentConnections if not overridden
+      maxRecognizers:
+        {}
+        # en: 4
+
+      # -- Override restart transcriber after N sessions for each language
+      restartAfterNSessions:
+        {}
+        # en: 1
+
+      # -- Resources configured for each specific language
+      # @default -- `chart will add a default resources map; see values.yaml`
+      resources:
+        ar:
+          requests:
+            cpu: 500m
+            memory: 5Gi
+        ba:
+          requests:
+            cpu: 300m
+            memory: 3Gi
+        be:
+          requests:
+            cpu: 400m
+            memory: 2Gi
+        bg:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        bn:
+          requests:
+            cpu: 800m
+            memory: 3Gi
+        ca:
+          requests:
+            cpu: 450m
+            memory: 3Gi
+        cmn:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        cmn_en:
+          requests:
+            cpu: 350m
+            memory: 3Gi
+        cs:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        cy:
+          requests:
+            cpu: 300m
+            memory: 2Gi
+        da:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        de:
+          requests:
+            cpu: 500m
+            memory: 4Gi
+        el:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        en:
+          requests:
+            cpu: 600m
+            memory: 5Gi
+        eo:
+          requests:
+            cpu: 300m
+            memory: 2Gi
+        es:
+          requests:
+            cpu: 400m
+            memory: 5Gi
+        et:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        eu:
+          requests:
+            cpu: 300m
+            memory: 2Gi
+        fa:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        fi:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        fr:
+          requests:
+            cpu: 600m
+            memory: 5Gi
+        ga:
+          requests:
+            cpu: 800m
+            memory: 3Gi
+        gl:
+          requests:
+            cpu: 400m
+            memory: 2Gi
+        he:
+          requests:
+            cpu: 800m
+            memory: 3Gi
+        hi:
+          requests:
+            cpu: 600m
+            memory: 3Gi
+        hr:
+          requests:
+            cpu: 400m
+            memory: 2Gi
+        hu:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        ia:
+          requests:
+            cpu: 300m
+            memory: 2Gi
+        id:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        it:
+          requests:
+            cpu: 450m
+            memory: 3Gi
+        ja:
+          requests:
+            cpu: 500m
+            memory: 4Gi
+        ko:
+          requests:
+            cpu: 550m
+            memory: 4Gi
+        lt:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        lv:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        mn:
+          requests:
+            cpu: 400m
+            memory: 2Gi
+        mr:
+          requests:
+            cpu: 700m
+            memory: 2Gi
+        ms:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        mt:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        nl:
+          requests:
+            cpu: 550m
+            memory: 3Gi
+        "no":
+          requests:
+            cpu: 700m
+            memory: 3Gi
+        pl:
+          requests:
+            cpu: 550m
+            memory: 3Gi
+        pt:
+          requests:
+            cpu: 450m
+            memory: 3Gi
+        ro:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        ru:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        sk:
+          requests:
+            cpu: 450m
+            memory: 3Gi
+        sl:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        sv:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        sw:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        ta:
+          requests:
+            cpu: 600m
+            memory: 2Gi
+        th:
+          requests:
+            cpu: 450m
+            memory: 3Gi
+        tr:
+          requests:
+            cpu: 550m
+            memory: 3Gi
+        ug:
+          requests:
+            cpu: 450m
+            memory: 2Gi
+        uk:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        ur:
+          requests:
+            cpu: 600m
+            memory: 3Gi
+        vi:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        yue:
+          requests:
+            cpu: 600m
+            memory: 2Gi
+
+  # configure service type and annotations
+  service: {}
+
+  # Volumes to mount into transcriber container
+  volumeMounts:
+    []
+    # - name: hello
+    #   path: goodbye
+
+  # Enable OTEL collection on the transcriber
+  # Will look for OTEL exporter on localhost port 4317
+  otel:
+    enabled: false
+
+# volumes to make available on transcriber pod
+volumes:
+  []
+  # - name: hello
+  #   hostPath: /hello
+
+blobuploader:
+  # -- Deploy blobuploader sidecar container on transcribers (only in batch mode)
+  enabled: true
+
+  image:
+    repository: blobuploader
+
+  provider: azure
+
+  # -- Resources for blobuploader
+  resources:
+    {}
+    # limits:
+    #   cpu: 50m
+    #   memory: 50Mi
+    # requests:
+    #   cpu: 10m
+    #   memory: 20Mi
+
+  # -- Readiness probe for blobuploader
+  readinessProbe:
+    {}
+    # httpGet:
+    #   path: /ready
+    #   port: 8024
+    # periodSeconds: 15
+    # timeoutSeconds: 10
+    # failureThreshold: 3
+
+  # -- Startup probe for blobuploader
+  startupProbe:
+    {}
+    # httpGet:
+    #   path: /ready
+    #   port: 8024
+    # periodSeconds: 1
+    # timeoutSeconds: 10
+    # failureThreshold: 180
+
+translation:
+  enabled: false
+  url: translation:8001
+
+# Enable provisioning of secrets using ExternalSecret resources
+externalSecrets:
+  enabled: false
+  secretStoreName: akv-secrets
+  secretStoreKind: ClusterSecretStore
+  provider: azure
+
+eats:
+  enabled: true
+  # -- URL to send usage data to. Defaults to "usage.speechmatics.com" if empty.
+  url: ""
+  # -- Enable or disable usage reporting
+  enableUsageReporting: false
+  # -- Enable or disable secure usage reporting
+  secure: false
+
+  # -- If enabled, URL comes from sm_eats_url key in the configMap
+  configMap:
+    enabled: false
+    # name: eats-cm
+
+# Override the resource manager URL, this will default to the release name
+resourceManager:
+  # Read RM configuration from configMap
+  configMap:
+    enabled: false
+
+# Enable transfer of sessions when using proxy-service infront of RT
+sessionTransfer:
+  enabled: true
+
+# Configurations related to batch mode
+batch:
+  # -- Chunk split size in seconds
+  splitSize: 60
+
+  # -- Count of parallel processing
+  parallel: 8
+
+  internalApi:
+    # -- API url endpoint for batch workers
+    url: http://api:8080/v2/jobs
+
+    # -- Name of the secret to look api access
+    secretName: internal-api-secret
+
+    # -- Have the chart manage the internal API secret
+    createSecret: false
+
+    # -- B64 encoded HMAC to store in secret
+    hmac: ""
+
+    # -- Remote secret key when using external secrets
+    secretKey: ""
+
+    # -- Remote secret property when using external secrets
+    secretProperty: ""
+
+  acs:
+    # -- Name of the secret to look for acs connection info
+    secretName: acs-connection-info
+
+    # -- Have the chart manage the acs connection info secret
+    createSecret: false
+
+    # -- B64 encoded config to store in secret
+    config: ""
+
+    # -- Remote secret key when using external secrets
+    secretKey: ""
+
+    # -- Remote secret property when using external secrets
+    secretProperty: ""
+
+  autoChapters:
+    # -- Name of the secret to look for auto chapters connection info
+    secretName: auto-chapters-connection-info
+
+    # -- Have the chart manage the auto chapters connection info secret
+    createSecret: false
+
+    # -- B64 encoded config to store in secret
+    config: ""
+
+    # -- Remote secret key when using external secrets
+    secretKey: ""
+
+    # -- Remote secret property when using external secrets
+    secretProperty: ""
+
+sessionGroups:
+  replicas: 1
+
+  allowedSurge: 1
+  maxPodsCreateAtOnce: 3
+  strategyRecreate: false
+
+  scaling:
+    minReplicas: 1
+    maxReplicas: 4
+
+    # -- Wait time before scaling down transcriber
+    scaleDownDelay: 1m0s
+
+    # -- Pod count capacity for when to scale up (Supports decimals)
+    scaleOnCapacityLeft: 5
+
+    # -- maximum number of pods to scale down at once
+    maxPodsScaledDownAtOnce: 10
+
+  defrag:
+    enabled: false
+    maxIdlePodsOnScaleUp: 1

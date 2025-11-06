@@ -1,0 +1,6 @@
+creds
+helm/sm-realtime/templates/license.yaml
+helm/sm-realtime/templates/speechmatics-registry.yaml
+helm/speechmatics.tar.gz
+chart-versions.sh
+repos.sh

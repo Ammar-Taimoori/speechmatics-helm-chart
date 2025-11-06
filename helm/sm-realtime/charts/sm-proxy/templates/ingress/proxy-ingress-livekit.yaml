@@ -1,0 +1,49 @@
+{{- if (and .Values.ingress.enabled .Values.ingress.flow.enabled .Values.ingress.flow.livekit.enabled) }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  {{- with .Values.ingress.flow.livekit.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "sm-proxy.labels" . | nindent 4 }}
+  name: {{ include "sm-proxy.fullname" . }}-flow-livekit
+spec:
+  ingressClassName: {{ .Values.ingress.ingressClassName }}
+  rules:
+    - host: {{ default (include "sm-proxy.fullname" .) .Values.ingress.url | quote }}
+      http:
+        paths:
+          - path: {{ .Values.ingress.flow.livekit.path }}
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "sm-proxy.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}
+    {{- if .Values.ingress.flow.additionalHost.enabled }}
+    - host: {{ default (include "sm-proxy.fullname" .) .Values.ingress.flow.additionalHost.url | quote }}
+      http:
+        paths:
+          - path: {{ .Values.ingress.flow.livekit.path }}
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "sm-proxy.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}
+    {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ default (include "sm-proxy.fullname" $) $.Values.ingress.url | quote }}
+      secretName: {{ .secretName }}
+    {{- if $.Values.ingress.flow.additionalHost.enabled }}
+    - hosts:
+        - {{ default (include "sm-proxy.fullname" $) $.Values.ingress.flow.additionalHost.url | quote }}
+      secretName: {{ $.Values.ingress.flow.additionalHost.tlsSecretName }}
+    {{- end }}
+  {{- end }}
+{{- end }}

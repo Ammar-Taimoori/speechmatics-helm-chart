@@ -1,0 +1,32 @@
+{{- $cluster := required "Please specify a cluster name" (default .Values.global.cluster .Values.cluster) }}
+{{- $redisPort := .Values.redis.master.service.ports.redis | toString }}
+{{- $redisServiceName := (default (printf "%s-redis-master" .Release.Name) .Values.redis.fullnameOverride) }}
+{{- if .Values.redis.sentinel.enabled }}
+{{- $redisPort = .Values.redis.sentinel.service.ports.sentinel | toString }}
+{{- $redisServiceName = (default (printf "%s-redis" .Release.Name) .Values.redis.fullnameOverride) }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ include "sm-resource-manager.fullname" . }}-config"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-resource-manager.labels" . | nindent 4 }}
+data:
+  cluster_name: {{ $cluster | quote }}
+{{- if not .Values.externalRedis.enabled }}
+  redis_url: {{ (default (printf "%s:%s" $redisServiceName $redisPort) .Values.redis.url) | quote }}
+{{- end }}
+{{- if eq .Values.mode "rt" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: languages
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-resource-manager.labels" . | nindent 4 }}
+data:
+  languages: {{ join "," (default .Values.global.transcriber.languages .Values.config.languages) }}
+{{- end }}

@@ -1,0 +1,155 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ include "sm-resource-manager.fullname" . }}"
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "sm-resource-manager.annotations" . | nindent 4 }}
+  labels:
+    {{- include "sm-resource-manager.labels" (merge (dict "app" "resource-manager") .) | nindent 4 }}
+spec:
+  replicas: {{ default 1 .Values.replicas }}
+  selector:
+    matchLabels:
+      {{- include "sm-resource-manager.selectorLabels" (merge (dict "app" "resource-manager") .) | nindent 6 }}
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  template:
+    metadata:
+      labels:
+        {{- include "sm-resource-manager.selectorLabels" (merge (dict "app" "resource-manager") .) | nindent 8 }}
+        {{- with .Values.additionalLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.additionalAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with (default .Values.global.imagePullSecrets .Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - env:
+            {{- with .Values.mode }}
+            - name: SM_MODE
+              value: {{ . }}
+            {{- end }}
+            - name: SM_RESOURCE_MANAGER_CONN_TIMEOUT_SECS
+              value: {{ .Values.config.resourceManagerConnTimeoutSecs | quote }}
+            - name: SM_OVERLOADING_STRATEGY
+              value: {{ .Values.config.overloadingStrategy }}
+            - name: SM_USE_NODE_BIN_PACKING
+              value: {{ .Values.config.useNodeBinPacking | quote }}
+            - name: SM_RESOURCE_SELECTION_STRATEGY
+              value: {{ .Values.config.resourceSelectionStrategy | quote }}
+            {{- if eq .Values.mode "rt" }}
+            - name: SM_LEASE_DURATION
+              value: {{ .Values.config.leaseDuration }}
+            - name: SM_ENABLE_SET_SERVICE_IP
+              value: {{ .Values.config.enableSetServiceIP | quote }}
+            {{- end }}
+            - name: TRANSCRIBER_NAMESPACE
+              value: {{ default .Release.Namespace .Values.transcriber.namespace }}
+            - name: SM_FLOW_USE_LOCAL_TRANSCRIBER
+              value: {{ default .Values.global.flow.flowUseLocalTranscriber .Values.config.flowUseLocalTranscriber | quote }}
+            - name: SM_INFERENCE_CAPACITY_ON_TRANSCRIBER_REQUEST_ENABLED
+              value: {{ .Values.config.inferenceCapacityOnTranscriberRequestEnabled | quote }}
+            - name: REDIS_CONN_URL
+              valueFrom:
+              {{- if not .Values.externalRedis.enabled }}
+                configMapKeyRef:
+                  name: {{ default (printf "%s-config" (include "sm-resource-manager.fullname" .)) .Values.redis.configMap.name }}
+                  key: redis_url
+              {{- else }}
+                secretKeyRef:
+                  name: {{ include "sm-resource-manager.redisSecretName" . }}
+                  key: redis_url
+            - name: REDIS_USE_EXTERNAL
+              value: "true"
+            - name: REDIS_DB_INDEX
+              value: {{ default 0 .Values.externalRedis.dbIndex | quote }}
+              {{- end }}
+            - name: REDIS_FAIL_OVER_CLIENT_ENABLED
+              value: {{ default (and .Values.redis.sentinel.enabled (not .Values.externalRedis.enabled)) .Values.redis.failOverClientEnabled | quote }}
+            {{- with .Values.redis.connectionTimeout }}
+            - name: REDIS_SETUP_TIMEOUT_DURATION
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if $.Values.cdCache.enabled }}
+            - name: CD_CACHE_MAX_ENTRY_SIZE_BYTES
+              value: {{ $.Values.cdCache.maxEntrySizeBytes | int64 | quote }}
+            - name: CD_CACHE_REDIS_CONN_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "sm-resource-manager.redisSecretName" . }}
+                  key: cd_cache_url
+            - name: CD_CACHE_REDIS_EXPIRY_SECOND
+              value: {{ $.Values.cdCache.expirySecond | quote }}
+            - name: CD_CACHE_MAX_KEYS_PER_CONTRACT
+              value: {{ $.Values.cdCache.maxKeysPerContract | quote }}
+            {{- end }}
+            {{- with .Values.additionalEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          image: {{ include "sm-resource-manager.image" (dict "Chart" .Chart "global" .Values.global.resourceManager "component" .Values) | quote }}
+          name: resource-manager
+          ports:
+            - containerPort: {{ .Values.containerPort }}
+              name: http
+              protocol: TCP
+          {{- with .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+          {{- if eq .Values.mode "rt" }}
+            - mountPath: /etc/config
+              name: configs
+              readOnly: true
+          {{- end }}
+          {{- with .Values.additionalVolumeMounts }}
+          {{- toYaml . | nindent 12 }}
+          {{- end }}
+      serviceAccountName: {{ include "sm-resource-manager.fullname" . }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+      {{- if eq .Values.mode "rt" }}
+        - configMap:
+            name: languages
+          name: configs
+      {{- end }}
+      {{- with .Values.additionalVolumes }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

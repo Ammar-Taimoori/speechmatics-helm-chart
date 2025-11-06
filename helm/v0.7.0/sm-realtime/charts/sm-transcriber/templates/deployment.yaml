@@ -1,0 +1,145 @@
+{{- $sgEnabled := (default .Values.global.sessionGroups.enabled .Values.sessionGroups.enabled) }}
+{{- if (not $sgEnabled) }}
+
+{{- $langItems := list }}
+{{- range $lang := uniq (concat .Values.transcriber.languages.cpuLanguages .Values.transcriber.languages.gpuLanguages .Values.global.transcriber.languages) }}
+  {{- $langItems = append $langItems (dict "name" $lang "languages" (list $lang) "preWarmLanguages" (list $lang)) }}
+{{- end }}
+{{- range $recipeName, $recipeDetails := .Values.transcriber.languages.gpuRecipes }}
+  {{- $langItems = append $langItems (dict "name" $recipeName "languages" $recipeDetails.languages "preWarmLanguages" $recipeDetails.preWarmLanguages) }}
+{{- end }}
+
+{{- if $.Values.transcriber.nameOverride }}
+  {{- if (gt (len ($langItems)) 1) }}
+    {{- fail "Values.transcriber.nameOverride can only be used when a single transcriber is being deployed" }}
+  {{- end }}
+{{- end }}
+
+{{- $name := (include "sm-transcriber.fullname" .) }}
+{{- $kube129 := (semverCompare ">=1.29.0" $.Capabilities.KubeVersion.GitVersion) }}
+{{- $mode := (required "Please specify transcriber mode" .Values.transcriber.mode) }}
+
+{{- range $langItem := $langItems }}
+{{- $lang := $langItem.name }}
+{{- $cleaned_lang := (  $lang | replace "_" "-" ) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $.Values.transcriber.nameOverride | default (printf "%s-%s" $name $cleaned_lang) }}
+  namespace: {{ $.Release.Namespace }}
+  {{- with $.Values.transcriber.additionalAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    lang: {{ $lang | quote }}
+    mode: {{ $mode }}
+    {{- include "sm-transcriber.labels" $ | nindent 4 }}
+    {{- with $.Values.transcriber.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if (get $.Values.transcriber.languages.overrides.autoscaling $lang) }}
+  replicas: {{ (get $.Values.transcriber.languages.overrides.autoscaling $lang).minReplicas }}
+  {{- else }}
+  replicas: {{ $.Values.transcriber.autoscaling.replicas.minReplicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: {{ $.Values.transcriber.nameOverride | default (printf "%s-%s" $name $cleaned_lang) }}
+  template:
+    metadata:
+      annotations:
+        speechmatics.io/component: "{{ $mode }}-asr-transcriber-{{ $lang }}"
+        {{- with $.Values.transcriber.additionalPodAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        app: {{ $.Values.transcriber.nameOverride | default (printf "%s-%s" $name $cleaned_lang) }}
+        lang: {{ $lang | quote }}
+        {{- with $.Values.transcriber.additionalPodLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with (default $.Values.global.imagePullSecrets $.Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      {{- if (eq "rt" $mode) }}
+      {{- (include "sm-transcriber.rtWorker" (dict "context" $ "mode" $mode "name" $name "lang" $lang "sgEnabled" $sgEnabled "languages" $langItem.languages "preWarmLanguages" $langItem.preWarmLanguages)) }}
+      {{- else if (eq "batch" $mode) }}
+      {{- (include "sm-transcriber.batchWorker" (dict "context" $ "mode" $mode "name" $name "lang" $lang "sgEnabled" $sgEnabled "languages" $langItem.languages "preWarmLanguages" $langItem.preWarmLanguages)) }}
+      {{- (include "sm-transcriber.blobUploader" (dict "context" $)) }}
+      {{- end }}
+      {{- if $.Values.readinessTracker.enabled }}
+      {{- (include "sm-transcriber.readinessTracker" (dict "context" $ "name" $name "lang" $lang "sgEnabled" $sgEnabled "languages" $langItem.languages)) }}
+      {{- end }}
+      {{- if (and (not (has $lang $.Values.transcriber.languages.cpuLanguages)) $.Values.workerProxy.enabled) }}
+      {{/* Run worker-proxy as an init container on ks8 version > 1.29 so it can work as init+sidecar */}}
+      {{- if $kube129 }}
+      initContainers:
+      {{- end }}
+      {{- (include "sm-transcriber.workerProxy" (dict "context" $ "name" $name "lang" $lang "sgEnabled" $sgEnabled "languages" $langItem.languages)) }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ $.Values.transcriber.terminationGracePeriodSeconds }}
+      {{- with (include "sm-transcriber.nodeSelector" (dict "lang" $lang "config" $.Values)) }}
+      nodeSelector:
+        {{- . | nindent 8 }}
+      {{- end }}
+      {{- with (include "sm-transcriber.tolerations" (dict "lang" $lang "config" $.Values)) }}
+      tolerations:
+        {{- . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ $name }}
+      {{- with $.Values.transcriber.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: license
+          secret:
+            items:
+              - key: license.json
+                path: license.json
+            secretName: {{ default $.Values.global.licensing.secretName $.Values.transcriber.licensing.secretName }}
+        {{- if $.Values.transcriber.mountModels.enabled }}
+        - name: modeldata
+          persistentVolumeClaim:
+            claimName: blob-model-storage
+        {{- end }}
+        {{- if (and (eq "rt" $mode) $.Values.transcriber.cdCache.enabled) }}
+        {{- with $.Values.transcriber.cdCache.volume }}
+        - name: cache
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- else if (eq "batch" $mode) }}
+        - name: sharedvoluplo
+          emptyDir: {}
+        - name: internal-api-secret
+          secret:
+            secretName: {{ $.Values.batch.internalApi.secretName }}
+        - name: acsconfigvol
+          secret:
+            secretName: acs-connection-info
+            items:
+              - key: acs-config
+                path: acs-config.yaml
+        - name: autochaptersconfigvol
+          secret:
+            secretName: auto-chapters-connection-info
+            items:
+              - key: auto-chapters-config
+                path: auto-chapters-config.yaml
+        {{- end }}
+        {{- if (and (eq "rt" $mode) $.Values.transcriber.speakerId.enabled) }}
+        - name: speaker-id
+          secret:
+            secretName: {{ $.Values.transcriber.speakerId.secretName }}
+        {{- end }}
+        {{- with $.Values.volumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end}}
+{{- end }}
+{{- end }}

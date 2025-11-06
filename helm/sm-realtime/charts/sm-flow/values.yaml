@@ -1,0 +1,394 @@
+global:
+  sessionGroups:
+    # -- Enable deployment as session group
+    enabled: false
+
+    scaling:
+      # -- Enable autoscaling of session groups
+      enabled: false
+
+  licensing:
+    # -- Name of the secret to look for a license
+    secretName: speechmatics-license
+
+    # -- Have the chart manage the license secret
+    createSecret: false
+
+    # -- B64 encoded license to store in secret
+    license: ""
+
+    # -- Remote secret key when using external secrets
+    secretKey: ""
+
+    # -- Remote secret property when using external secrets
+    secretProperty: ""
+
+  flow:
+    image:
+      registry: speechmatics.azurecr.io
+
+  resourceManager:
+    image:
+      # -- Registry to use for all resource manager images managed by this chart
+      registry: speechmatics.azurecr.io
+
+      # -- Tag to use for all resource manager images managed by this chart
+      tag: 1.34.4-1307514
+
+readinessTracker:
+  # -- Enable readiness tracker sidecar
+  enabled: true
+
+  image:
+    # -- Repository to use for readiness tracker image
+    repository: readiness-tracker
+  # -- Image pull policy for readiness tracker image
+  imagePullPolicy: IfNotPresent
+
+  # -- Restart flow-service after N sessions
+  restartAfterNSessions: 10
+
+  additionalEnvFrom: []
+  additionalEnv: {}
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Ki
+
+# -- Flow license secret configuration
+licensing:
+  {}
+  # secretName: speechmatics-license
+  # createSecret: false
+  # license: b64encoded license json
+
+# -- Replica count when using deployment
+replicas: 1
+
+image:
+  repository: flow-service
+
+additionalAnnotations: {}
+additionalLabels: {}
+
+additionalPodAnnotations: {}
+additionalPodLabels: {}
+
+additionalEnvFrom: []
+additionalEnv: {}
+
+useRecreateStrategy: false
+
+maxConcurrentConnections:
+  value: "1"
+
+# -- Map of "Hello" message in different languages.
+# When an agent defines `agents_speaks_first`, but no `first_message`, a relevant first message is generated,
+# based on the output of the LLM when given the agent instructions and asked "Hello".
+helloMessageLangMap: |
+  {
+    "en": "Hello",
+    "es-bilingual-en": "Hello",
+    "ar": "مرحبا",
+    "de": "Hallo",
+    "no": "Hallo",
+    "it": "Ciao",
+    "fr": "Bonjour",
+    "da": "Hej",
+    "cmn": "你好",
+    "ko": "안녕하세요",
+    "nl": "Hallo",
+    "sv": "Hej",
+    "pt": "Olá",
+    "ja": "こんにちは",
+    "hi": "नमस्ते",
+    "id": "Halo",
+    "tr": "Merhaba",
+    "pl": "Witam",
+    "bg": "здравей",
+    "ro": "Bună ziua!",
+    "cs": "Ahoj",
+    "el": "Γειά σου",
+    "fi": "Hei",
+    "hr": "Zdravo",
+    "ms": "Hello",
+    "sk": "Ahoj",
+    "ta": "வணக்கம்",
+    "uk": "привіт",
+    "ru": "привет",
+    "hu": "Helló",
+    "vi": "Xin chào",
+    "th": "สวัสดี"
+  }
+
+livenessProbe:
+  httpGet:
+    path: /api/health
+    port: health-port
+    scheme: HTTP
+  periodSeconds: 20
+  successThreshold: 1
+  failureThreshold: 6
+  timeoutSeconds: 19
+  initialDelaySeconds: 2
+
+readinessProbe:
+  httpGet:
+    path: /api/ready
+    port: health-port
+    scheme: HTTP
+  periodSeconds: 10
+  successThreshold: 1
+  failureThreshold: 6
+  timeoutSeconds: 9
+  initialDelaySeconds: 2
+
+resources:
+  requests:
+    cpu: 300m
+    memory: 300Mi
+
+terminationGracePeriodSeconds: 30
+
+# -- Image pull policy for flow-service image
+imagePullPolicy: IfNotPresent
+
+# configure service type and annotations
+service:
+  type: ClusterIP
+  annotations: {}
+
+# Volumes to mount into flow-service container
+additionalVolumeMounts:
+  []
+  # - name: hello
+  #   path: goodbye
+
+# volumes to make available on flow-service pod
+additionalVolumes:
+  []
+  # - name: hello
+  #   hostPath: /hello
+
+usageReporting:
+  # -- Configure usage reporting mode
+  mode: online
+  # -- Configure the interval in seconds between two FLOW_STATUS events
+  # statusEventInterval: 300
+
+config:
+  asr:
+    # -- Connect local ASR workers from flow workers
+    flowUseLocalTranscriber: false
+
+    # -- ASR endpoint
+    # endpoint: wss://preview.rt.speechmatics.com/v2
+
+  tts:
+    sm:
+      # -- Include Speechmatics TTS config
+      enabled: false
+      # -- Endpoint for Speechmatics TTS
+      # endpoint: https://tts.speechmatics.com/generate/
+
+    elevenlabs:
+      # -- Include ElevenLabs TTS config
+      enabled: false
+
+    playht:
+      # -- Include PlayHT TTS config
+      enabled: false
+
+  llm:
+    azure:
+      # -- Include Azure OpenAI LLM config
+      enabled: false
+      # -- api_version for Azure OpenAI LLM requests
+      apiVersion: "2024-02-15-preview"
+      ## max_tokens to use for Azure OpenAI LLM requests
+      # maxTokens: 124
+
+      ## additional presets for Azure OpenAI LLM in flow-service
+      additionalPresets:
+        {}
+        # - gpt-4o:
+        #     description: GPT-4o model
+        #     config:
+        #       env:
+        #         api_key: AZURE_API_KEY
+        #       completion:
+        #         model: gpt-4o
+        #       api:
+        #         azure_endpoint: https://smflowtest.openai.azure.com/
+        #         api_version: "2023-05-15"
+
+    chatgpt:
+      # -- Include ChatGPT LLM config
+      enabled: false
+      ## max_tokens to use for OpenAI LLM requests
+      # maxTokens: 124
+
+      ## additional presets for OpenAI LLM in flow-service
+      additionalPresets: {}
+
+    llmProxy:
+      # -- Model group name defined in LLM Proxy config which should be used as default by flow.
+      # Default is EMPTY in case LLM Proxy is setup with empty config and depends on LLM configuration from Agents.
+      modelGroup: EMPTY
+      ## max_tokens to use for LLM requests via LLM Proxy
+      # maxTokens: 124
+
+      ## additional presets for LLM proxy in flow-service
+      additionalPresets: {}
+
+  ce:
+    conversationLimit:
+      # -- Enable conversation duration limit
+      enabled: false
+      # -- Sets the maximum conversation duration time in seconds
+      duration: 1200
+      # -- Sets how long before the termination (in seconds), client receives a warning message
+      terminationWarningInterval: 60
+
+    llm:
+      default: ProxyLLM:base
+
+endOfTurn:
+  # -- Enable end of turn (EOT) detection
+  enabled: false
+  # -- Endpoint for end of turn detection service
+  endpoint: http://eot-llm:8000
+  # -- End of turn detection model
+  model: HuggingFaceTB/SmolLM2-360M-Instruct
+  # -- Probability threshold for end of turn detection
+  probabilityThreshold: 0.01
+  # -- Maximum number of conversation history messages to send to EOT model
+  maxConversationHistoryLength: 10
+  # -- Maximum number of tokens to send to EOT model
+  maxHistoryTokens: 512
+  # -- Timeout for EOT model requests in milliseconds
+  timeout: 150
+  # -- List of languages supported by EOT model
+  supportedLanguages: ["en"]
+
+# Enable provisioning of secrets using ExternalSecret resources
+externalSecrets:
+  enabled: false
+  secretStoreName: akv-secrets
+  secretStoreKind: ClusterSecretStore
+
+secrets:
+  data:
+    {}
+    # - secretKey: flow-asr-api-key
+    #   remoteRef:
+    #     key: flow-asr-api-key
+    # - secretKey: flow-eleven-labs-api-key
+    #   remoteRef:
+    #     key: flow-eleven-labs-api-key
+    # - secretKey: flow-openai-api-key
+    #   remoteRef:
+    #     key: flow-openai-api-key
+    # - secretKey: flow-azure-openai-api-key
+    #   remoteRef:
+    #     key: flow-azure-openai-api-key
+    # - secretKey: flow-playht-api-key
+    #   remoteRef:
+    #     key: flow-playht-api-key
+    # - secretKey: flow-playht-user-id
+    #   remoteRef:
+    #     key: flow-playht-user-id
+    # - secretKey: flow-mp-api-internal-password
+    #   remoteRef:
+    #     key: flow-mp-api-internal-password
+  additionalData:
+    {}
+    # - secretKey: flow-azure-openai-api-key-100
+    #   remoteRef:
+    #     key: flow-azure-openai-api-key-100
+
+nodeSelector:
+  dedicated: "speechmatics"
+
+# -- Pod tolerations
+tolerations:
+  - effect: NoExecute
+    key: node.kubernetes.io/not-ready
+    operator: Exists
+    tolerationSeconds: 300
+  - effect: NoExecute
+    key: node.kubernetes.io/unreachable
+    operator: Exists
+    tolerationSeconds: 300
+  - effect: NoSchedule
+    key: node.kubernetes.io/memory-pressure
+    operator: Exists
+# Allow runAsUser, runAsGroup, fsGroup etc to pass through
+securityContext: {}
+
+# Override the resource manager URL, this will default to the release name
+resourceManager:
+  url: http://resource-manager:8080
+
+  # Read RM configuration from configMap
+  configMap:
+    enabled: false
+
+internalApp:
+  # -- Enable internal skeleton app
+  enabled: false
+  # -- Proxy URL for connecting flow from internal skeleton app
+  # proxyURL: ""
+
+managementPlatform:
+  # -- Management platform URL.
+  # This is used to fetch templates from the management platform.
+  # And also, generating JWT tokens for internal skeleton app usage.
+  url: "mp.speechmatics.com"
+
+ingress:
+  enabled: false
+
+  # Which ingress controller to use for ingress
+  # Set to get ingress annotations for 302 redirects for relevant controller
+  ingressClassName: nginx
+
+  zone: speechmatics.io
+
+  # Ingress for handling calls to / and /api
+  api:
+    annotations: {}
+    labels: {}
+
+  tlsSecretName: tls-secret
+
+sessionGroups:
+  replicas: 1
+
+  strategyRecreate: false
+  activeNodeScheduling: true
+
+  allowedSurge: 1
+  maxPodsCreateAtOnce: 3
+
+  scaling:
+    minReplicas: 1
+    maxReplicas: 4
+    scaleDownDelay: 1m0s
+    scaleOnCapacityLeft: 5 # or scaleOnPodsLeft, which supports decimals
+    # scaleOnPodsLeft: null
+    maxPodsScaledDownAtOnce: 10
+
+  defrag:
+    enabled: false
+    maxIdlePodsOnScaleUp: 1
+
+llmProxy:
+  enabled: false
+
+vllm:
+  enabled: false
+
+tts:
+  enabled: false

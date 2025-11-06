@@ -1,0 +1,215 @@
+---
+global:
+  tts:
+    image:
+      # -- Registry to use for TTS containers
+      registry: speechmaticsproduction.azurecr.io
+
+      # -- tag will default to .Chart.AppVersion
+      # tag: ""
+
+  resourceManager:
+    # -- URL of resource manager instance:
+    url: http://resource-manager:8080
+
+    image:
+      # -- Registry to use for resource-manager images
+      registry: speechmaticsproduction.azurecr.io
+
+      # -- Version of resource manager components to deploy (inference-sidecar)
+      tag: 1.34.4-1307514
+
+  licensing:
+    # -- Name of the secret to look for a license
+    secretName: speechmatics-license
+
+    # -- Have the chart manage the license secret
+    createSecret: false
+
+    # -- B64 encoded license to store in secret
+    license: ""
+
+    # -- Remote secret key when using external secrets
+    secretKey: ""
+
+    # -- Remote secret property when using external secrets
+    secretProperty: ""
+
+  sessionGroups:
+    # -- Deploy containers in SessionGroups instead of Deployments
+    enabled: false
+
+    scaling:
+      # -- Enable autoscaling of session groups
+      enabled: false
+
+image:
+  repository: sm-tts-inference-server
+
+replicas: 1
+containerPort: 8000
+
+additionalAnnotations: {}
+additionalLabels: {}
+
+additionalPodAnnotations: {}
+additionalPodLabels: {}
+
+envFrom: []
+additionalEnvFrom: []
+additionalEnv: {}
+
+terminationGracePeriodSeconds: 30
+
+resources:
+  limits:
+    # -- GPU requirements for TTS server
+    nvidia.com/gpu: "1"
+
+livenessProbe: {}
+#   httpGet:
+#     path: /health/liveliness
+#     port: 4000
+#   initialDelaySeconds: 120
+#   periodSeconds: 15
+#   successThreshold: 1
+#   failureThreshold: 3
+#   timeoutSeconds: 10
+
+readinessProbe: {}
+#   httpGet:
+#     path: /health/readiness
+#     port: 4000
+#   initialDelaySeconds: 120
+#   periodSeconds: 15
+#   successThreshold: 1
+#   failureThreshold: 3
+#   timeoutSeconds: 10
+
+# additional volumes and volumeMounts to make available on tts pod
+additionalVolumeMounts: []
+additionalVolumes:
+  []
+  # - name: hello
+  #   hostPath: /hello
+
+nodeSelector: {}
+tolerations: []
+
+imagePullSecrets: []
+
+# Allow runAsUser, runAsGroup, fsGroup etc to pass through
+securityContext: {}
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+# configure service type and annotations
+service:
+  port: 8000
+  type: ClusterIP
+  annotations: {}
+
+# -- TTS license secret configuration
+licensing: {}
+  # secretName: speechmatics-license
+  # createSecret: false
+  # license: b64encoded license json
+
+# Enable provisioning of secrets using ExternalSecret resources
+externalSecrets:
+  enabled: false
+  secretStoreName: akv-secrets
+  secretStoreKind: ClusterSecretStore
+  provider: azure
+
+# Ingress configuration
+ingress:
+  enabled: false
+
+  annotations: {}
+  labels: {}
+
+  # Which ingress controller to use for ingress
+  ingressClassName: nginx
+
+  zone: lab.speechmatics.io
+  tls:
+    enabled: false
+    secretName: tls-secret-tts
+
+# Configure datadog scrape annotations
+datadog:
+  # -- Add datadog annotations to pods for monitoring
+  addAnnotations: true
+  inferenceSidecarMetrics: ["open_connections", "unique_connected_ips"]
+
+inferenceSidecar:
+  # -- Deploy inference sidecar container
+  enabled: true
+
+  image:
+    # -- Image repository for inference sidecar
+    repository: inference-sidecar
+
+  port: 8008
+  env: {}
+
+  # Handles connections to resource-manager to register tokens
+  resourceManager:
+    configMap:
+      # -- Enable reading resource-manager server information from configMap
+      enabled: false
+
+  # `SM_CRASH_DETECTOR_DRY_RUN` (true) - Should crash detector run in dry run only (only log) or actually unregister resource when triton crash is detected.
+  # `SM_CRASH_DETECTOR_THRESHOLD` (5) - How many times in a row should the liveness check fail in order to decide that triton has crashed. This check is checked every 1 second with 2 second request timeout.
+  # `SM_CRASH_DETECTOR_INTERVAL` (1s) - How often should the crash detector check if triton is alive.
+  # `SM_CRASH_DETECTOR_TIMEOUT` (2s) - Request timeout of crash detector.
+  crashDetectorDryRun: false
+
+  # Details passed under registerFeatures will be converted as JSON and set to REGISTER_FEATURES env variable
+  # Passing required capacity and model_costs to registerFeatures dict will enable load balancing of TTS server based on these parameters
+  # TTS image version will get added to the JSON unless it is overridden by version key in registerFeatures dict
+  registerFeatures:
+    # -- Total capacity of TTS server in terms of model cost
+    capacity: 1
+    modelCosts:
+      # -- Cost of American Female voice model
+      americanFemale: 1
+      # -- Cost of American Male voice model
+      americanMale: 1
+      # -- Cost of French Female voice model
+      frenchFemale: 1
+      # -- Cost of Spanish Female voice model
+      spanishFemale: 1
+
+    # -- Map of additional models to include under model_costs
+    additionalModelCosts: {}
+
+sessionGroups:
+  # -- Number of session groups to deploy
+  replicas: 1
+
+  allowedSurge: 1
+  maxPodsCreateAtOnce: 3
+
+  strategyRecreate: false
+  activeNodeScheduling: false
+
+  scaling:
+    minReplicas: 1
+    maxReplicas: 4
+
+    # -- How long to wait before removing pods
+    scaleDownDelay: 5m0s
+
+    # -- Capacity limit left before scaling up
+    scaleOnCapacityLeft: 2
+
+    # -- Maximum pods to scale down at once
+    maxPodsScaledDownAtOnce: 10
+
+  defrag:
+    enabled: false
+    maxIdlePodsOnScaleUp: 1

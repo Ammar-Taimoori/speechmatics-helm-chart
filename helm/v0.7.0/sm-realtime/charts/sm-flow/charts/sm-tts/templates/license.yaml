@@ -1,0 +1,41 @@
+{{- if .Values.licensing.createSecret }}
+{{- $secretName := default .Values.global.licensing.secretName .Values.licensing.secretName }}
+{{- if .Values.externalSecrets.enabled }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $secretName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-tts.labels" . | nindent 4 }}
+spec:
+  refreshInterval: 1h
+
+  secretStoreRef:
+    name: {{ .Values.externalSecrets.secretStoreName }}
+    kind: {{ .Values.externalSecrets.secretStoreKind }}
+
+  target:
+    name: {{ $secretName }}
+
+  data:
+  - secretKey: license.json
+    remoteRef:
+      key: {{ default "speechmatics-license" (default .Values.global.licensing.secretKey .Values.licensing.secretKey) }}
+      {{- if eq "vault" .Values.externalSecrets.provider }}
+      property: {{ default "license" (default .Values.global.licensing.secretProperty .Values.licensing.secretProperty) }}
+      {{- end }}
+{{- else }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secretName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-tts.labels" . | nindent 4 }}
+data:
+  license.json: {{ default .Values.global.licensing.license .Values.licensing.license | quote }}
+{{- end }}
+{{- end }}

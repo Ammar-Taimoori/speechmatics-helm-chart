@@ -1,0 +1,43 @@
+{{- if .Values.ingress.enabled }}
+{{- $name := include "sm-vllm.fullname" . }}
+{{- $serviceName := include "sm-vllm.vllmServiceName" . }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.ingress.labels }}
+  labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- with .Values.ingress.ingressClassName }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  rules:
+    - host: {{ include "sm-vllm.vllmIngressHost" . }}
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                {{- if (eq $serviceName "vllm") }}
+                name: {{ $serviceName }}-svc
+                {{- else }}
+                name: {{ $serviceName }}
+                {{- end }}
+                port:
+                  number: {{ .Values.service.port }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ include "sm-vllm.vllmIngressHost" . | quote }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+{{- end }}

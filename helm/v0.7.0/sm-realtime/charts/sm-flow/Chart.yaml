@@ -1,0 +1,22 @@
+apiVersion: v2
+appVersion: 0.27.7-1327988
+dependencies:
+- alias: llmProxy
+  condition: llmProxy.enabled
+  name: sm-llm-proxy
+  repository: file://../sm-llm-proxy
+  version: ~0.0.16
+- alias: tts
+  condition: tts.enabled
+  name: sm-tts
+  repository: file://../sm-tts
+  version: ~0.0.12
+- alias: vllm
+  condition: vllm.enabled
+  name: sm-vllm
+  repository: file://../sm-vllm
+  version: ~0.0.5
+description: A Helm chart for deploying flow-service
+name: sm-flow
+type: application
+version: 0.5.22

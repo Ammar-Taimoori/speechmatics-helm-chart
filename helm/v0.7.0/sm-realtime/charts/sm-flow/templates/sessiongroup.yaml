@@ -1,0 +1,287 @@
+{{- if (or .Values.global.sessionGroups.enabled .Values.sessionGroups.enabled) }}
+---
+apiVersion: speechmatics.com/v1
+kind: SessionGroup
+metadata:
+  name: {{ include "sm-flow.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "sm-flow.annotations" . | nindent 4 }}
+    {{- with .Values.additionalAnnotations }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  labels:
+    {{- include "sm-flow.labels" . | nindent 4 }}
+    {{- with .Values.additionalLabels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: {{ .Values.sessionGroups.replicas }}
+
+  strategyRecreate: {{ .Values.sessionGroups.strategyRecreate }}
+  activeNodeScheduling: {{ .Values.sessionGroups.activeNodeScheduling }}
+
+  allowedSurge: {{ .Values.sessionGroups.allowedSurge }}
+  maxPodsCreateAtOnce: {{ .Values.sessionGroups.maxPodsCreateAtOnce }}
+
+  scaling:
+    enabled: {{ default .Values.global.sessionGroups.scaling.enabled .Values.sessionGroups.scaling.enabled }}
+    minReplicas: {{ .Values.sessionGroups.scaling.minReplicas }}
+    maxReplicas: {{ .Values.sessionGroups.scaling.maxReplicas }}
+    scaleDownDelay: {{ .Values.sessionGroups.scaling.scaleDownDelay }}
+    {{- if hasKey .Values.sessionGroups.scaling "scaleOnPodsLeft" }}
+    scaleOnPodsLeft: {{ .Values.sessionGroups.scaling.scaleOnPodsLeft }}
+    {{- else if hasKey .Values.sessionGroups.scaling "scaleOnCapacityLeft" }}
+    scaleOnCapacityLeft: {{ .Values.sessionGroups.scaling.scaleOnCapacityLeft }}
+    {{- else }}
+      {{- fail "One value from sessionGroups.scaling.scaleOnPodsLeft or sessionGroups.scaling.scaleOnCapacityLeft must be set." }}
+    {{- end }}
+    maxPodsScaledDownAtOnce: {{ .Values.sessionGroups.scaling.maxPodsScaledDownAtOnce }}
+
+  defrag:
+    enabled: {{ .Values.sessionGroups.defrag.enabled }}
+    maxIdlePodsOnScaleUp: {{ .Values.sessionGroups.defrag.maxIdlePodsOnScaleUp }}
+
+  selector:
+    matchLabels:
+      {{- include "sm-flow.selectorLabels" . | nindent 6 }}
+
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.additionalPodAnnotations }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "sm-flow.selectorLabels" . | nindent 8 }}
+        {{- with .Values.additionalPodLabels }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with (default .Values.global.imagePullSecrets .Values.imagePullSecrets) }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+      containers:
+      - name: flow-service
+        env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: status.podIP
+          {{- if .Values.config.llm.chatgpt.enabled }}
+          - name: OPENAI_API_KEY
+            valueFrom:
+              secretKeyRef:
+                key: flow-openai-api-key
+                name: flow-service
+          {{- end }}
+          {{- if .Values.config.tts.elevenlabs.enabled }}
+          - name: ELEVEN_API_KEY
+            valueFrom:
+              secretKeyRef:
+                key: flow-eleven-labs-api-key
+                name: flow-service
+          {{- end }}
+          {{- if .Values.config.tts.playht.enabled }}
+          - name: PLAYHT_API_KEY
+            valueFrom:
+              secretKeyRef:
+                key: flow-playht-api-key
+                name: flow-service
+          - name: PLAYHT_USER_ID
+            valueFrom:
+              secretKeyRef:
+                key: flow-playht-user-id
+                name: flow-service
+          {{- end }}
+          {{- if .Values.helloMessageLangMap }}
+          - name: SM_HELLO_PER_LANG
+            value: {{ .Values.helloMessageLangMap | fromYaml | toJson | squote }}
+          {{- end }}
+          {{- if .Values.internalApp.enabled }}
+          - name: WS_PROXY_URL
+            value: {{ .Values.internalApp.proxyURL  }}
+          - name: MP_URL
+            value: {{ .Values.managementPlatform.url }}
+          - name: MP_API_KEY
+            valueFrom:
+              secretKeyRef:
+                key: flow-mp-api-key
+                name: flow-service
+          {{- end }}
+          {{- with .Values.additionalEnvFrom }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
+          {{- range $k, $v := .Values.additionalEnv }}
+          - name: {{ $k }}
+            value: {{ $v | quote }}
+          {{- end }}
+          {{/* Add any new env variables above this; SG injects SM_DEPLOYMENT_NAME, SM_NODE_NAME and SM_SPEC_VERSION at the bottom of the env variables list */}}
+          - name: SM_DEPLOYMENT_NAME
+            value: {{ include "sm-flow.fullname" . }}
+          - name: SM_NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: SM_SPEC_VERSION
+            valueFrom:
+              fieldRef:
+                fieldPath: 'metadata.labels[''speechmatics.com/spec-version'']'
+        image: {{ include "sm-flow.image" (dict "Chart" .Chart "global" .Values.global.flow "component" .Values) | quote }}
+        {{- with .Values.imagePullPolicy }}
+        imagePullPolicy: {{ . }}
+        {{- end }}
+        ports:
+          - containerPort: 3000
+            name: ws
+            protocol: TCP
+          - containerPort: 3001
+            name: health-port
+            protocol: TCP
+        {{- with .Values.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        volumeMounts:
+          - mountPath: /license.json
+            name: license
+            readOnly: true
+            subPath: license.json
+          - name: flow-service-config-file
+            mountPath: /llava/config/extra_config.yaml
+            subPath: extra_config.yaml
+          {{- with .Values.additionalVolumeMounts }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
+      {{- if .Values.readinessTracker.enabled }}
+      - name: readiness-tracker
+        env:
+          - name: SM_TOKEN_STORE_URL
+            {{- if and (.Values.resourceManager.configMap) (.Values.resourceManager.configMap.enabled) }}
+            valueFrom:
+              configMapKeyRef:
+                name: {{ default .Release.Name .Values.resourceManager.configMap.name }}
+                key: resource_manager_url
+            {{- else }}
+            value: {{ .Values.resourceManager.url }}
+            {{- end }}
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: status.podIP
+          - name: REGISTER_FEATURES
+            value: '{"capacity": {{ .Values.maxConcurrentConnections.value }}, "version": {{ include "sm-flow.version" . | quote }}, "model_costs": {"flow-worker": 1}}'
+          - name: READINESS_TRACKER_HEALTH_CHECK_PORT
+            value: "8002"
+          - name: SM_WORKER_HEALTH_PORT
+            value: "3001"
+          - name: READY_ENDPOINT
+            value: "/api/ready"
+          - name: SESSIONS_ENDPOINT
+            value: "/api/active_sessions"
+          - name: SM_RUNTIME_MODE
+            value: "flow"
+          - name: SM_RESTART_TRANSCRIBER_AFTER_N_SESSIONS
+            value: {{ $.Values.readinessTracker.restartAfterNSessions | quote }}
+          - name: PRE_WARM_ENABLED
+            value: "false"
+          - name: PRE_WARM_EVERY_SESSION
+            value: "false"
+          {{- with .Values.readinessTracker.additionalEnvFrom }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
+          {{- range $k, $v := .Values.readinessTracker.additionalEnv }}
+          - name: {{ $k }}
+            value: {{ $v | quote }}
+          {{- end }}
+          {{- /* Needed to report/decrement usage when running outside of default namespace */}}
+          - name: SM_K8S_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          {{/* Add any new env variables above this; SG injects SM_DEPLOYMENT_NAME, SM_NODE_NAME and SM_SPEC_VERSION at the bottom of the env variables list */}}
+          - name: SM_DEPLOYMENT_NAME
+            value: {{ include "sm-flow.fullname" . }}
+          - name: SM_NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: SM_SPEC_VERSION
+            valueFrom:
+              fieldRef:
+                fieldPath: 'metadata.labels[''speechmatics.com/spec-version'']'
+        image: {{ include "sm-flow.image" (dict "Chart" .Chart "global" .Values.global.resourceManager "component" .Values.readinessTracker) | quote }}
+        {{- with .Values.readinessTracker.imagePullPolicy }}
+        imagePullPolicy: {{ . }}
+        {{- end }}
+        ports:
+          - containerPort: 8002
+            name: check-port
+            protocol: TCP
+          - containerPort: 8022
+            {{- /* Do not change the port name as it is expected by repopulation service */}}
+            name: register-repop
+            protocol: TCP
+          - containerPort: 8023
+            {{- /* Do not change the port name as it is expected by repopulation service */}}
+            name: rt-repop
+            protocol: TCP
+        {{- with .Values.readinessTracker.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+       {{- range $selector, $value := . }}
+        {{ $selector }}: {{ $value | quote }}
+      {{- end }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "sm-flow.serviceAccountName" . }}
+      {{- with .Values.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: license
+          secret:
+            items:
+              - key: license.json
+                path: license.json
+            secretName: {{ default .Values.global.licensing.secretName .Values.licensing.secretName }}
+        - name: flow-service-config-file
+          configMap:
+            name: {{ include "sm-flow.configMapName" . }}
+            items:
+              - key: extra_config.yaml
+                path: extra_config.yaml
+        {{- with .Values.additionalVolumes }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+{{- end }}

@@ -1,0 +1,28 @@
+{{- $name := include "sm-tts.ttsServiceName" . }}
+{{- if not (or .Values.global.sessionGroups.enabled .Values.sessionGroups.enabled) }}
+{{- range $voice, $config := .Values.voices }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-{{ $voice }}
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    {{- include "sm-tts.annotations" $ | nindent 4 }}
+    {{- with $.Values.service.annotations }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  labels:
+    {{- include "sm-tts.labels" (merge (dict "app" $name) $) | nindent 4 }}
+    voice: {{ $voice }}
+spec:
+  ports:
+    - port: {{ $.Values.service.port }}
+      protocol: TCP
+      targetPort: http
+  selector:
+    {{- include "sm-tts.selectorLabels" (merge (dict "app" $name) $) | nindent 4 }}
+    voice: {{ $voice }}
+  type: {{ $.Values.service.type }}
+{{- end }}
+{{- end }}

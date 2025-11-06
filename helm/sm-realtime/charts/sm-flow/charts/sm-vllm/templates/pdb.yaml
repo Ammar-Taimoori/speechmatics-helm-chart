@@ -1,0 +1,13 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+{{- $name := include "sm-vllm.fullname" . }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "sm-vllm.selectorLabels" (merge (dict "app" $name) .) | nindent 6 }}
+{{- end }}

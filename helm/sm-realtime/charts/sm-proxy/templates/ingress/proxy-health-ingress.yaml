@@ -1,0 +1,30 @@
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  {{- with .Values.ingress.health.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  name: {{ include "sm-proxy.fullname" . }}-health
+spec:
+  ingressClassName: {{ .Values.ingress.ingressClassName }}
+  rules:
+    - host: {{ default (include "sm-proxy.fullname" .) .Values.ingress.url | quote }}
+      http:
+        paths:
+          - path: /v1/health
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "sm-proxy.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ default (include "sm-proxy.fullname" $) $.Values.ingress.url | quote }}
+      secretName: {{ .secretName }}
+  {{- end }}
+{{- end }}

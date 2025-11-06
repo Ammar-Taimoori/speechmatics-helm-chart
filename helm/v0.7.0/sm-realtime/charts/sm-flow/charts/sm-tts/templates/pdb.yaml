@@ -1,0 +1,18 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+{{- $name := include "sm-tts.ttsServiceName" . }}
+{{- if not (or .Values.global.sessionGroups.enabled .Values.sessionGroups.enabled) }}
+{{- range $voice, $config := .Values.voices }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}-{{ $voice }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "sm-tts.selectorLabels" (merge (dict "app" $name) $) | nindent 6 }}
+      voice: {{ $voice }}
+{{- end }}
+{{- end }}
+{{- end }}

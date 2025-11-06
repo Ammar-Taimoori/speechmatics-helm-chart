@@ -1,0 +1,15 @@
+{{- if (and .Values.backends.database.enabled .Values.backends.database.extraMetrics.enabled) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.backends.database.extraMetrics.configMap.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-scaling.labels" . | nindent 4 }}
+data:
+{{- with .Values.backends.database.extraMetrics.configMap.data }}
+  queries.yml: |
+    {{- toYaml . | nindent 4 }}
+{{- end }}
+{{- end }}

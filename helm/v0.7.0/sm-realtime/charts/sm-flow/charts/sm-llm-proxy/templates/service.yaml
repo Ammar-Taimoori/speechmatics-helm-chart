@@ -1,0 +1,22 @@
+{{- $name := include "sm-llm-proxy.llmProxyServiceName" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "sm-llm-proxy.annotations" . | nindent 4 }}
+    {{- with .Values.service.annotations }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  labels:
+    {{- include "sm-llm-proxy.labels" (merge (dict "app" $name) .) | nindent 4 }}
+spec:
+  ports:
+    - port: {{ .Values.service.port }}
+      protocol: TCP
+      targetPort: llm-proxy
+  selector:
+    {{- include "sm-llm-proxy.selectorLabels" (merge (dict "app" $name) .) | nindent 4 }}
+  type: {{ .Values.service.type }}

@@ -1,0 +1,121 @@
+{{- if .Values.proxyCache.enabled }}
+{{- $name := include "sm-proxy.cacheServiceName" . }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "sm-proxy.annotations" . | nindent 4 }}
+    {{- with .Values.additionalAnnotations }}
+      {{- toYaml .| nindent 4 }}
+    {{- end }}
+  labels:
+    {{- include "sm-proxy.labels" (merge (dict "app" $name) .) | nindent 4 }}
+spec:
+  replicas: {{ .Values.proxyCache.replicas }}
+  {{- with .Values.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "sm-proxy.selectorLabels" (merge (dict "app" $name) .) | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.proxyCache.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "sm-proxy.selectorLabels" (merge (dict "app" $name) .) | nindent 8 }}
+      {{- with .Values.proxyCache.podLabels }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with (default .Values.global.imagePullSecrets .Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        {{- if not .Values.proxyCache.redis.external }}
+        - name: redis-cache
+          args:
+            - --save
+          image: "{{ .Values.proxyCache.redis.image.repository }}:{{ .Values.proxyCache.redis.image.tag }}"
+          imagePullPolicy: {{ default "IfNotPresent" .Values.proxyCache.redis.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.proxyCache.redis.containerPort | default 6379 }}
+              protocol: TCP
+          {{- with .Values.proxyCache.redis.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.proxyCache.redis.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.proxyCache.redis.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
+        - name: proxy-service-cache
+          env:
+            - name: DB_CONN_STRING
+              valueFrom:
+                secretKeyRef:
+                  key: conn_string
+                  name: {{ include "sm-proxy.database" . }}
+            - name: REDIS_USE_EXTERNAL
+              value: {{ .Values.proxyCache.redis.external | quote }}
+            - name: REDIS_CONN_STRING
+              {{- if (not .Values.proxyCache.redis.external) }} 
+              value: "0.0.0.0:{{ .Values.proxyCache.redis.containerPort | default 6379 }}"
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  key: conn_string
+                  name: {{ include "sm-proxy.fullname" . }}-redis
+              {{- end }}
+            {{- with .Values.proxyCache.additionalEnv }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: {{ include "sm-proxy.image" (merge (dict "Chart" $.Chart "global" .Values.global.proxy "component" .Values.proxyCache) $) | quote }}
+          imagePullPolicy: {{ default "IfNotPresent" .Values.proxyCache.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.proxyCache.containerPort | default 8080 }}
+              protocol: TCP
+          {{- with .Values.proxyCache.redis.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.proxyCache.redis.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.proxyCache.redis.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.proxyCache.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.proxyCache.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.proxyCache.terminationGracePeriodSeconds | default 30 }}
+      restartPolicy: {{ .Values.restartPolicy }}
+      dnsPolicy: {{ .Values.dnsPolicy }}
+{{- end }}

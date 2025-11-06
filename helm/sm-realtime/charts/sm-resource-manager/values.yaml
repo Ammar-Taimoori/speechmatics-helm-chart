@@ -1,0 +1,416 @@
+# -- Global resource manager configuration
+# -- These Values.*.image.* will take precedence over the global.resourceManager values if provided.
+global:
+  # -- Name of the cluster the service is running on (needed for multi-cluster deployments)
+  # cluster: dummy
+
+  resourceManager:
+    image:
+      registry: speechmaticsproduction.azurecr.io
+      tag: ""
+
+  # List of languages supported by environment
+  # Can be disabled if the configMap is being created by another resource
+  transcriber:
+    languages: ["en"]
+
+  flow:
+    # Connect local ASR workers from flow workers
+    flowUseLocalTranscriber: false
+
+# -- Configuration for the resource manager, defaults to mode:rt
+config:
+
+  # -- configure resource manager connection timeout, defaults to 60 seconds
+  resourceManagerConnTimeoutSecs: 900
+
+  # -- RT only, enables dev setting to set service ip of workers
+  # -- Use X-Use-Worker-Service-Ip header to set service ip pointing to given worker set
+  # -- This is used for testing purposes only, and should not be used in production
+  enableSetServiceIP: false
+
+  # -- Tokenstore configuration to pop tokens, defaults to not_allowed
+  # -- Accepted values are not_allowed, allow_partial, allow_all
+  overloadingStrategy: not_allowed
+
+  # -- RT only, duration of the lease in seconds, defaults to 15 minutes
+  leaseDuration: 5m
+
+  # -- Token store sort resources based on node usage, defaults to false
+  useNodeBinPacking: false
+
+  # -- Resource selection strategy, defaults to 0, accepts range of 0-3
+  #  0 is choose most-utilized available resource, on collision select one with higher capacity
+  #  1 is choose least-utilized available resource, on collision select one with higher capacity
+  #  2 is choose most-utilized available resource, on collision select one with lower capacity
+  #  3 is choose least-utilized available resource, on collision select one with lower capacity
+  resourceSelectionStrategy: 0
+
+  # -- Enables inference capacity on transcriber request feature which allows RM
+  # to obtain inference tokens for transcriber and for triton at once (to prevent
+  # situations where request lands on cluster with transcribers but no tritons)
+  inferenceCapacityOnTranscriberRequestEnabled: false
+
+  # -- List of languages supported by environment
+  # languages: ["en"]
+
+# -- Run in RT or batch mode
+mode: rt
+
+#######################
+# INGRESS
+#######################
+ingress:
+  enabled: false
+
+  # Which ingress controller to use for ingress
+  # Set to get ingress annotations for 302 redirects for relevant controller
+  ingressClassName: nginx
+
+  zone: speechmatics.io
+
+  # Whether to apply annotations to ingress resources to support 302 redirects
+  enableRedirectAnnotations: true
+
+  # Ingress for handling calls to /v1/transcribers
+  api:
+    enabled: false
+    annotations: {}
+
+  # Ingress for websocket sessions (/v1/LANG)
+  redirect:
+    annotations: {}
+
+    # config for URL path, /v1/cmn_en
+    path: /(v{1}([0-9]*?))/([a-z]{1,3}(_[a-z_]{0,22})?)(/|$)
+
+  # Ingress for flow websocket sessions (/v1/flow)
+  flow:
+    enabled: false
+    annotations: {}
+
+  tlsSecretName: tls-secret
+
+#######################
+#  RESOURCE MANAGER
+#######################
+# To override global values for the image and version, uncomment and modify the lines below.
+# -- These values will take precedence over the global.resourceManager values if provided.
+image:
+  repository: resource-manager
+  # registry: ""
+  # tag: ""
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 40Mi
+
+containerPort: 8080
+
+service:
+  port: 8080
+
+livenessProbe:
+  httpGet:
+    path: /live
+    port: 8080
+  initialDelaySeconds: 15
+  periodSeconds: 15
+  timeoutSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 8080
+  initialDelaySeconds: 15
+  periodSeconds: 15
+  timeoutSeconds: 10
+
+securityContext:
+  privileged: true
+  allowPrivilegeEscalation: true
+  runAsUser: 0
+  runAsGroup: 0
+  fsGroup: 0
+  runAsNonRoot: false
+
+transcriber:
+  {}
+  # Place to look for transcribers
+  # namespace: default
+
+pdb:
+  enabled: false
+
+######################
+# METRICS
+######################
+metrics:
+  enabled: true
+  replicas: 1
+
+  # To override global values for the image and version, uncomment and modify the lines below.
+  # -- These values will take precedence over the global.resourceManager values if provided.
+  image:
+    repository: resource-manager-metrics
+    # registry: speechmatics.azurecr.io
+    # tag: ""
+
+  resources:
+    requests:
+      cpu: 20m
+      memory: 40Mi
+
+  securityContext:
+    privileged: true
+    allowPrivilegeEscalation: true
+    runAsUser: 0
+    runAsGroup: 0
+    fsGroup: 0
+    runAsNonRoot: false
+
+  containerPort: 8080
+
+  service:
+    port: 8080
+
+  workerMonitor:
+    # -- Enable monitoring of worker CPU and Memory usage, logging when usage exceeds thresholds
+    enabled: true
+    # -- Logging Threshold for CPU usage as a factor of requested CPU
+    CPUFactor: 1.2
+    # -- Logging threshold for Memory usage as a factor of requested Memory
+    memoryFactor: 1.2
+    conditionMetrics: container_memory_usage_megabytes
+
+
+######################
+# RECONCILIATION
+######################
+reconciliation:
+  # -- Enable reconciliation service
+  enabled: true
+
+  # To override global values for the image and version, uncomment and modify the lines below.
+  # -- These values will take precedence over the global.resourceManager values if provided.
+  image:
+    repository: resource-manager-reconciliation
+    # registry: speechmatics.azurecr.io
+    # tag: ""
+
+  reconciliationInterval: 15
+
+  # -- List of pods to watch for reconciliation
+  podSelectorList: []
+
+  # Get list of pods from config map
+  podSelectorConfigMap:
+    enabled: false
+
+  # Repopulation
+  repopulation:
+    # -- Enable repopulation functionality
+    enabled: false
+    pauseDuration: 2s
+
+  # Node CPU Monitoring
+  nodeMonitor:
+    # -- Enable node CPU monitoring
+    enabled: false
+    cpuThreshold: 90
+    conditionDuration: 5m
+    filterLabels:
+      - "gpu=true"
+      - "workers-only=true"
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+
+  securityContext:
+    privileged: true
+    allowPrivilegeEscalation: true
+    runAsUser: 0
+    runAsGroup: 0
+    fsGroup: 0
+    runAsNonRoot: false
+
+  containerPort: 8080
+
+######################
+# SESSION GROUPS
+######################
+sessionGroups:
+  enabled: false
+
+  # controller image
+  # To override global values for the image and version, uncomment and modify the lines below.
+  # -- These values will take precedence over the global.resourceManager values if provided.
+  image:
+    repository: sessiongroups-controller
+    # registry: speechmatics.azurecr.io
+    # tag: ""
+
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 8081
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 10
+
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      port: 8081
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 10
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 128Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
+
+  controller:
+    additionalArgs: {}
+    additionalAnnotations: {}
+
+  defrag:
+    scaleDownEnabled: false
+
+#####################
+# SECRETS
+#####################
+secrets:
+  database:
+    create: false
+    # name: customer-db-connection-info
+
+    # Configure remote ref for external-secrets
+    remoteRef:
+      {}
+      # key: saas/dev-deployments/rm-database
+      # property: database
+
+  redis:
+    create: false
+    # name: redis-connection-info
+
+    # Configure remote ref for external-secrets
+    remoteRef:
+      {}
+      # key: saas/dev-deployments/rm-redis
+      # property: database
+
+  cdCache:
+    create: false
+    # name: cdcache-connection-info
+
+    # Configure remote ref for external-secrets
+    remoteRef:
+      {}
+
+  externalSecrets:
+    enabled: false
+
+#####################
+# REDIS
+#####################
+externalRedis:
+  enabled: false
+  dbIndex: 0
+
+redis:
+  # -- Manage redis as part of the resource manager chart
+  enabled: true
+
+  # -- URL of redis instance
+  # url: redis:26379
+
+  # Override configMap used to read redis information
+  configMap:
+    # -- Name of the config map to use for redis information (defaults to FULL_NAME-config)
+    name: ""
+
+  auth:
+    enabled: false
+    sentinel: false
+
+  master:
+    persistence:
+      enabled: true
+      existingClaim: "redis-speechmatics-data"
+    disableCommands: []
+
+    service:
+      ports:
+        # -- Port number used for redis master
+        redis: 6379
+
+  replica:
+    # -- Only applies in replica mode
+    replicaCount: 0
+    resources:
+      limits:
+        cpu: 100m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    disableCommands: []
+
+  sentinel:
+    # -- Enable sentinel for redis
+    enabled: false
+
+    service:
+      ports:
+        # -- Port number used for redis sentinel
+        sentinel: 23679
+
+    startupProbe:
+      failureThreshold: 30
+    livenessProbe:
+      failureThreshold: 15
+    readinessProbe:
+      timeoutSeconds: 3
+      failureThreshold: 15
+
+  commonConfiguration: |-
+    # Enable AOF https://redis.io/topics/persistence#append-only-file
+    appendonly yes
+    # Enable RDB persistence.
+    # Save the dataset every N seconds if there are at least M changes in the dataset
+    save 60 1000
+    save 180 300
+    save 300 1
+
+#####################
+# CDCACHE
+#####################
+cdCache:
+  # -- Enable CD caching for faster startup
+  enabled: false
+
+  # -- Maximum size of a CD cache entry
+  maxEntrySizeBytes: 10485760 # calculation is 10MB (1024 * 1024 * 10)
+
+  # -- Number of seconds before a CD cache entry expires
+  expirySecond: 86400
+
+  # -- Maximum number of CD cache entries per contract
+  maxKeysPerContract: 200
+
+tolerations:
+  - key: "node"
+    operator: "Equal"
+    value: "speechmatics"
+    effect: "NoSchedule"
+nodeSelector:
+  dedicated: "speechmatics"

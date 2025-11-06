@@ -1,0 +1,23 @@
+# sub-charts need to know resource-manager URL, they are configured to read it from this config map
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "sm-realtime.labels" . | nindent 4 }}
+data:
+  resource_manager_url: {{ printf "http://%s:%s" (include "sm-realtime.resourceManagerName" .) (print .Values.resourceManager.service.port) | quote }}
+  pod_selector_list: {{ include "sm-realtime.podSelectorList" . }}
+{{- if .Values.proxy.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: discovery-api-features
+  labels:
+    {{- include "sm-realtime.labels" . | nindent 4 }}
+data:
+  features: |
+    {{- .Files.Get "files/features.json" | nindent 4 }}
+{{- end }}

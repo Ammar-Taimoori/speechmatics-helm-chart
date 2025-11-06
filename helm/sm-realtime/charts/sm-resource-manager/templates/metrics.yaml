@@ -1,0 +1,96 @@
+{{- if .Values.metrics.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ include "sm-resource-manager.fullname" . }}-metrics"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-resource-manager.labels" (merge (dict "app" "metrics") .) | nindent 4 }}
+  annotations:
+    {{- include "sm-resource-manager.annotations" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.metrics.replicas }}
+  selector:
+    matchLabels:
+      {{- include "sm-resource-manager.selectorLabels" (merge (dict "app" "metrics") .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "sm-resource-manager.selectorLabels" (merge (dict "app" "metrics") .) | nindent 8 }}
+        {{- with .Values.metrics.additionalLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.metrics.additionalAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with (default .Values.global.imagePullSecrets .Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: metrics
+          image: {{ include "sm-resource-manager.image" (dict "Chart" .Chart "global" .Values.global.resourceManager "component" .Values.metrics) | quote }}
+          env:
+            - name: SM_WORKER_MONITOR_ENABLED
+              value: {{ .Values.metrics.workerMonitor.enabled | quote }}
+            {{- if .Values.metrics.workerMonitor.enabled }}
+            - name: SM_WORKER_MONITOR_METRICS_THRESHOLDS
+              value: {{ printf "container_cpu_usage_millicores:%.2f,container_memory_usage_megabytes:%.2f" .Values.metrics.workerMonitor.CPUFactor .Values.metrics.workerMonitor.memoryFactor }}
+            - name: SM_WORKER_MONITOR_CONTAINER_NAME
+              value: {{ default "rt-asr-transcriber" .Values.metrics.workerMonitor.containerName }}
+            - name: SM_WORKER_MONITOR_POD_NAME_PREFIX
+              value: {{ default "rt-transcribers-" .Values.metrics.workerMonitor.podNamePrefix }}
+            - name:  SM_WORKER_MONITOR_NODE_LABEL_SELECTOR
+              value: {{ default "workers-only=true" .Values.metrics.workerMonitor.nodeSelector }}
+            - name: SM_WORKER_MONITOR_CONDITION_METRICS
+              value: {{ .Values.metrics.workerMonitor.conditionMetrics }}
+            {{- end }}
+            - name: REDIS_CONN_URL
+              valueFrom:
+              {{- if not .Values.externalRedis.enabled }}
+                configMapKeyRef:
+                  name: {{ default (printf "%s-config" (include "sm-resource-manager.fullname" .)) .Values.redis.configMap.name }}
+                  key: redis_url
+              {{- else }}
+                secretKeyRef:
+                  name: {{ include "sm-resource-manager.redisSecretName" . }}
+                  key: redis_url
+            - name: REDIS_USE_EXTERNAL
+              value: "true"
+            - name: REDIS_DB_INDEX
+              value: {{ default 0 .Values.externalRedis.dbIndex | quote }}
+              {{- end }}
+            - name: REDIS_FAIL_OVER_CLIENT_ENABLED
+              value: {{ default (and .Values.redis.sentinel.enabled (not .Values.externalRedis.enabled)) .Values.redis.failOverClientEnabled | quote }}
+            {{- with .Values.redis.connectionTimeout }}
+            - name: REDIS_SETUP_TIMEOUT_DURATION
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.metrics.additionalEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.metrics.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - containerPort: {{ .Values.metrics.containerPort }}
+              name: http
+              protocol: TCP
+      serviceAccountName: {{ include "sm-resource-manager.fullname" . }}-metrics
+      {{- with .Values.metrics.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

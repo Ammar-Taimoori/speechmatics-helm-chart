@@ -1,0 +1,5 @@
+CHANGELOG.md
+.git
+docs.md
+sm-realtime-*.tgz
+test.values.yaml

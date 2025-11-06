@@ -1,0 +1,223 @@
+{{- if (or .Values.global.sessionGroups.enabled .Values.sessionGroups.enabled) }}
+{{- $name := include "sm-tts.ttsServiceName" . }}
+{{- $version := include "sm-tts.appVersion" . }}
+{{- $inferenceSidecarPort := default 8008 .Values.inferenceSidecar.port }}
+---
+apiVersion: speechmatics.com/v1
+kind: SessionGroup
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "sm-tts.annotations" . | nindent 4 }}
+    {{- with .Values.additionalAnnotations }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  labels:
+    {{- include "sm-tts.labels" (merge (dict "app" $name) .) | nindent 4 }}
+    {{- with .Values.additionalLabels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: {{ .Values.sessionGroups.replicas }}
+
+  strategyRecreate: {{ .Values.sessionGroups.strategyRecreate }}
+  activeNodeScheduling: {{ .Values.sessionGroups.activeNodeScheduling }}
+
+  allowedSurge: {{ .Values.sessionGroups.allowedSurge }}
+  maxPodsCreateAtOnce: {{ .Values.sessionGroups.maxPodsCreateAtOnce }}
+
+  scaling:
+    enabled: {{ default .Values.global.sessionGroups.scaling.enabled .Values.sessionGroups.scaling.enabled }}
+    minReplicas: {{ .Values.sessionGroups.scaling.minReplicas }}
+    maxReplicas: {{ .Values.sessionGroups.scaling.maxReplicas }}
+    scaleDownDelay: {{ .Values.sessionGroups.scaling.scaleDownDelay }}
+    {{- if hasKey .Values.sessionGroups.scaling "scaleOnPodsLeft" }}
+    scaleOnPodsLeft: {{ .Values.sessionGroups.scaling.scaleOnPodsLeft }}
+    {{- else if hasKey .Values.sessionGroups.scaling "scaleOnCapacityLeft" }}
+    scaleOnCapacityLeft: {{ .Values.sessionGroups.scaling.scaleOnCapacityLeft }}
+    {{- else }}
+      {{- fail "One value from sessionGroups.scaling.scaleOnPodsLeft or sessionGroups.scaling.scaleOnCapacityLeft must be set." }}
+    {{- end }}
+    maxPodsScaledDownAtOnce: {{ .Values.sessionGroups.scaling.maxPodsScaledDownAtOnce }}
+
+  defrag:
+    enabled: {{ .Values.sessionGroups.defrag.enabled }}
+    maxIdlePodsOnScaleUp: {{ .Values.sessionGroups.defrag.maxIdlePodsOnScaleUp }}
+
+  selector:
+    matchLabels:
+      {{- include "sm-tts.selectorLabels" (merge (dict "app" $name) .) | nindent 6 }}
+
+  template:
+    metadata:
+      annotations:
+        {{- if .Values.datadog.addAnnotations }}
+        {{- include "sm-tts.ttsServerDatadogAnnotations" (dict "containerName" "tts-server" "name" $name ) | nindent 8 }}
+        {{- if .Values.inferenceSidecar.enabled }}
+        {{- include "sm-tts.inferenceSidecarDatadogAnnotations" (dict "port" $inferenceSidecarPort "metrics" .Values.datadog.inferenceSidecarMetrics) | nindent 8 }}
+        {{- end }}
+        {{- end }}
+        {{- with .Values.additionalPodAnnotations }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "sm-tts.selectorLabels" (merge (dict "app" $name) .) | nindent 8 }}
+        {{- with .Values.additionalPodLabels }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with (default .Values.global.imagePullSecrets .Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: tts-server
+        env:
+          - name: NVIDIA_REQUIRE_CUDA
+            value: "cuda>=11.6"
+          - name: CUDA_VISIBLE_DEVICES
+            value: "0"
+          - name: MAX_CONCURRENT_REQUESTS
+            value: {{ $.Values.maxConcurrentRequests | quote }}
+            {{- with .Values.envFrom }}
+              {{- toYaml . | nindent 10 }}
+            {{- end }}
+            {{- with .Values.additionalEnvFrom }}
+              {{- toYaml . | nindent 10 }}
+            {{- end }}
+          {{- range $k, $v := .Values.additionalEnv }}
+          - name: {{ $k }}
+            value: {{ $v | quote }}
+          {{- end }}
+          {{/* Add any new env variables above this; SG injects SM_DEPLOYMENT_NAME, SM_NODE_NAME and SM_SPEC_VERSION at the bottom of the env variables list */}}
+          - name: SM_DEPLOYMENT_NAME
+            value: {{ $name }}
+          - name: SM_NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: SM_SPEC_VERSION
+            valueFrom:
+              fieldRef:
+                fieldPath: 'metadata.labels[''speechmatics.com/spec-version'']'
+        image: {{ include "sm-tts.image" (dict "Chart" .Chart "global" .Values.global.tts "component" .Values) | quote }}
+        {{- with .Values.imagePullPolicy }}
+        imagePullPolicy: {{ . }}
+        {{- end }}
+        ports:
+        - containerPort: {{ .Values.containerPort }}
+          name: http
+          protocol: TCP
+        {{- with .Values.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        volumeMounts:
+          - mountPath: /license.json
+            name: license
+            readOnly: true
+            subPath: license.json
+        {{- with .Values.additionalVolumeMounts }}
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- if .Values.inferenceSidecar.enabled }}
+      - name: "inference-sidecar"
+        image: {{ include "sm-tts.image" (dict "Chart" .Chart "global" .Values.global.resourceManager "component" .Values.inferenceSidecar) | quote }}
+        {{- with .Values.inferenceSidecar.imagePullPolicy }}
+        imagePullPolicy: {{ . }}
+        {{- end }}
+        env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: status.podIP
+          - name: SM_RUNTIME_MODE
+            value: tts
+          - name: INFERENCE_PORT
+            value: {{ .Values.containerPort | quote }}
+          - name: SM_METRICS_PORT
+            value: {{ $inferenceSidecarPort | quote }}
+        {{- if not (hasKey .Values.inferenceSidecar.env "REGISTER_FEATURES")}}
+          - name: REGISTER_FEATURES
+            value: {{ toJson (merge (include "sm-tts.models" . | fromYaml) (dict "version" $version)) | squote }}
+        {{- end }}
+          - name: SM_TOKEN_STORE_URL
+        {{- if .Values.inferenceSidecar.resourceManager.configMap.enabled }}
+            valueFrom:
+              configMapKeyRef:
+                name: {{ default .Release.Name .Values.inferenceSidecar.resourceManager.configMap.name }}
+                key: resource_manager_url
+        {{- else }}
+            value: {{ default .Values.global.resourceManager.url .Values.inferenceSidecar.resourceManager.url }}
+        {{- end }}
+          - name: SM_CRASH_DETECTOR_DRY_RUN
+            value: {{ .Values.inferenceSidecar.crashDetectorDryRun | quote }}
+        {{- range $k, $v := .Values.inferenceSidecar.env }}
+          - name: {{ $k }}
+            value: {{ $v | quote }}
+        {{- end }}
+        {{/* Add any new env variables above this; SG injects SM_DEPLOYMENT_NAME, SM_NODE_NAME and SM_SPEC_VERSION at the bottom of the env variables list */}}
+          - name: SM_DEPLOYMENT_NAME
+            value: {{ $name }}
+          - name: SM_NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: SM_SPEC_VERSION
+            valueFrom:
+              fieldRef:
+                fieldPath: 'metadata.labels[''speechmatics.com/spec-version'']'
+        ports:
+          - name: sidecar-metrics
+            containerPort: {{ $inferenceSidecarPort }}
+            protocol: TCP
+          {{- /* Do not change the port name as it is expected by repopulation service */}}
+          - name: register-repop
+            containerPort: 8022
+            protocol: TCP
+        {{- with .Values.inferenceSidecar.resources }}
+        resources:
+          {{- toYaml . | nindent 12 }}
+        {{- end }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+      {{- range $selector, $value := . }}
+        {{ $selector }}: {{ $value | quote }}
+      {{- end }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: license
+          secret:
+            items:
+              - key: license.json
+                path: license.json
+            secretName: {{ default .Values.global.licensing.secretName .Values.licensing.secretName }}
+      {{- with .Values.additionalVolumes }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

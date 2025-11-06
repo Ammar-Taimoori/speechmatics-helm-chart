@@ -1,0 +1,280 @@
+{{- $cluster := required "Please specify a cluster name" (default .Values.global.cluster .Values.cluster) }}
+{{- $appVersion := (include "sm-proxy.appVersion" .) }}
+{{- range $dep, $config := .Values.proxy.deployments }}
+{{- $configOverwrite := merge $config $.Values.proxy }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ printf "%s-%s" (include "sm-proxy.fullname" $) $dep }}
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    {{- include "sm-proxy.annotations" $ | nindent 4 }}
+    {{- with $.Values.additionalAnnotations }}
+    {{- toYaml .| nindent 4 }}
+    {{- end }}
+  labels:
+    {{- include "sm-proxy.labels" (merge (dict "deployVersion" (default $appVersion $configOverwrite.image.tag)) $) | nindent 4 }}
+    {{- with $.Values.additionalLabels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: {{ $.Values.replicas }}
+  {{- with $.Values.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "sm-proxy.selectorLabels" (merge (dict "deploy" $dep) $) | nindent 6 }}
+  template:
+    metadata:
+      {{- with $.Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "sm-proxy.selectorLabels" (merge (dict "deploy" $dep) $) | nindent 8 }}
+    spec:
+      {{- with (default $.Values.global.imagePullSecrets $.Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "sm-proxy.serviceAccountName" $}}
+      {{- with $.Values.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        # Provide default affinity to ensure that different deployments are spread across nodes
+        podAntiAffinity:
+          {{- if $.Values.requiredDuringSchedulingStrategy }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: speechmatics.io/deployment
+                    operator: In
+                    values:
+                      - {{ $dep }}
+              topologyKey: kubernetes.io/hostname       
+          {{- else }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: speechmatics.io/deployment
+                      operator: In
+                      values:
+                        - {{ $dep }}
+                topologyKey: kubernetes.io/hostname
+              weight: 100
+            {{- end }}
+            {{- with $.Values.podAntiAffinity }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+      {{- with $.Values.affinity }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: proxy-service
+          {{- with $.Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: {{ include "sm-proxy.image" (merge (dict "Chart" $.Chart "global" $.Values.global.proxy "component" $configOverwrite) $) | quote }}
+          imagePullPolicy: {{ default "IfNotPresent" $.Values.proxy.imagePullPolicy }}
+          ports:
+            - containerPort: {{ $.Values.proxy.containerPort | default 8080 }}
+              protocol: TCP
+          env:
+            {{- if $.Values.config.enabled }}
+            - name: SM_CONFIGMAP_TO_LISTEN
+              value: {{ include "sm-proxy.config" $ }}
+            {{- end }}
+            {{- if $.Values.events.enabled }}
+            - name: SM_KAFKA_EVENTHUB_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  key: endpoint
+                  name: {{ include "sm-proxy.events" $ }}
+            - name: SM_KAFKA_EVENTHUB_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  key: conn-string
+                  name: {{ include "sm-proxy.events" $ }}
+            {{- end }}
+            {{- if $.Values.storage.enabled }}
+            - name: AZ_STORAGE_ACCOUNT
+              valueFrom:
+                secretKeyRef:
+                  key: storageaccountname
+                  name: {{ include "sm-proxy.storage" $ }}
+            - name: AZ_STORAGE_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: storageaccountkey
+                  name: {{ include "sm-proxy.storage" $ }}
+            {{- end }}
+            - name: SM_FEATURES_VALIDATION
+              valueFrom:
+                configMapKeyRef:
+                  key: {{ $.Values.discoveryApi.key }}
+                  name: {{ $.Values.discoveryApi.configMapName }}
+            - name: SM_CLUSTER_NAME
+              value: {{ $cluster }}
+            {{- with $.Values.env }}
+            - name: SM_ENVIRONMENT
+              value: {{ . }}
+            {{- end }}
+            - name: SM_TOKEN_STORE_URL
+              {{- if and ($.Values.resourceManager.configMap) ($.Values.resourceManager.configMap.enabled) }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ default $.Release.Name $.Values.resourceManager.configMap.name }}
+                  key: resource_manager_url
+              {{- else }}
+              value: {{ default $.Values.global.resourceManager.url $.Values.resourceManager.url }}
+              {{- end }}
+            {{- if $.Values.proxyCache.enabled }}
+            - name: REDIS_USE_EXTERNAL
+              value: {{ $.Values.proxyCache.redis.external | quote }}
+            - name: REDIS_CONN_STRING
+              {{- if not $.Values.proxyCache.redis.external }}
+              value: {{ include "sm-proxy.cacheServiceName" $ }}:{{ $.Values.proxyCache.service.port }}
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  key: conn_string
+                  name: {{ include "sm-proxy.fullname" $ }}-redis
+              {{- end }}
+            {{- end }}
+            {{- with $.Values.proxy.dns.defaultSrvRecords }}
+            - name: SM_DEFAULT_SRV_RECORDS
+              value: {{ . | toJson | squote }}
+            {{- end }}
+            {{- if ne $.Release.Namespace "default" }}
+            - name: SM_PROXY_NAMESPACE
+              value: {{ $.Release.Namespace }}
+            {{- end }}
+            {{- with $.Values.proxy.asrRequestBasePath }}
+            - name: ASR_REQUEST_BASE_PATH
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if $.Values.proxy.copyAllHeaders }}
+            - name: SM_COPY_ALL_HEADERS
+              value: {{ $.Values.proxy.copyAllHeaders | quote }} 
+            {{- end }}
+            {{- with $.Values.agentAPI }}
+            - name: SM_AGENT_LOADING_ENABLED
+              value: {{ .enabled | quote }}
+            {{- if .enabled }}
+            {{- if .useLocal }}
+            - name: SM_AGENT_LOAD_FROM_DISK
+              value: {{ .useLocal | quote }}
+            {{- else if .useRemote }}
+            - name: SM_AGENT_API_URL
+              value: {{ .remoteURL }}
+            - name: SM_AGENT_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: flow-mp-api-internal-password
+                  name: {{ include "sm-proxy.fullname" $ }}-agent-api
+            {{- else }}
+              {{- fail "Either remote URL or local path should be configured for AgentAPI" }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if $.Values.livekit.enabled }}
+            - name: LIVEKIT_URL
+              valueFrom:
+                secretKeyRef:
+                  key: livekit-url
+                  name: {{ include "sm-proxy.fullname" $ }}-livekit
+            - name: LIVEKIT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: livekit-api-key
+                  name: {{ include "sm-proxy.fullname" $ }}-livekit
+            - name: LIVEKIT_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: livekit-api-secret
+                  name: {{ include "sm-proxy.fullname" $ }}-livekit
+            {{- end }}
+            {{- with $configOverwrite.additionalEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $.Values.proxy.customArgs }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $.Values.proxy.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $.Values.proxy.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with (default $.Values.proxy.resources $config.resources )}}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- if $.Values.proxy.dns.enabled }}
+            - mountPath: /etc/dnssrv-config
+              name: dns-srv-volume
+            {{- end }}
+            {{- if $.Values.agentAPI.configMap.enabled }}
+            - name: agent-config
+              mountPath: {{ $.Values.agentAPI.localPath}}
+            {{- end }}
+            {{- if $.Values.proxy.customDict.enabled }}
+            - name: custom-dict
+              mountPath: /etc/config
+            {{- end }}
+          {{- with $.Values.proxy.additionalVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $config.additionalVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ $.Values.terminationGracePeriodSeconds }}
+      restartPolicy: {{ $.Values.restartPolicy }}
+      dnsPolicy: {{ $.Values.dnsPolicy }}
+      volumes:
+        {{- if $.Values.proxy.dns.enabled }}
+        - configMap:
+            defaultMode: 420
+            name: {{ include "sm-proxy.dns" $}}
+          name: dns-srv-volume
+        {{- end }}
+        {{- if $.Values.agentAPI.configMap.enabled }}
+        - name: agent-config
+          configMap:
+            name: {{ include "sm-proxy.agentConfig" $ }}
+        {{- end }}
+        {{- if $.Values.proxy.customDict.enabled }}
+        - name: custom-dict
+          configMap:
+            name: {{ include "sm-proxy.customDictConfig" $ }}
+            defaultMode: 420
+        {{- end }}
+      {{- with $.Values.additionalVolumes }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $config.additionalVolumes }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

@@ -1,0 +1,10 @@
+apiVersion: v2
+appVersion: 1.34.4-1307514
+dependencies:
+- condition: redis.enabled
+  name: redis
+  repository: https://charts.bitnami.com/bitnami
+  version: 17.3.7
+description: Manage connections to RT transcribers and inference servers
+name: sm-resource-manager
+version: 1.7.24

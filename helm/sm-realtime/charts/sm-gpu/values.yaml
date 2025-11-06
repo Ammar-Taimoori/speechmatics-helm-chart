@@ -1,0 +1,360 @@
+global:
+  transcriber:
+    image:
+      # -- Registry to use for transcriber + inference server images
+      registry: speechmaticsproduction.azurecr.io
+
+      # -- By default will use .Chart.AppVersion for the tag
+      # tag: ""
+
+  resourceManager:
+    # -- URL of resource manager instance:
+    url: http://resource-manager:8080
+
+    image:
+      # -- Registry to use for resource-manager images
+      registry: speechmaticsproduction.azurecr.io
+
+      # -- Version of resource manager components to deploy (inference-sidecar, worker-proxy)
+      tag: 1.34.4-1307514
+
+  licensing:
+    # -- Name of the secret to look for a license
+    secretName: speechmatics-license
+
+    # -- Have the chart manage the license secret
+    createSecret: false
+
+    # -- B64 encoded license
+    license: ""
+
+    # -- Remote secret key when using external secrets
+    secretKey: ""
+
+    # -- Remote secret property when using external secrets
+    secretProperty: ""
+
+  sessionGroups:
+    # -- Deploy containers in SessionGroups instead of Deployments
+    enabled: false
+
+    scaling:
+      # -- Enable autoscaling of session groups
+      enabled: false
+
+tritonServer:
+  runtimeClassName: nvidia
+  # -- Mode can be batch, rt or translation
+  mode: rt
+  # -- Recipe can be standard-all, enhanced-recipe1, enhanced-recipe2, enhanced-recipe3, enhanced-recipe4 or custom
+  recipe: custom
+  # -- Leave operatingPoint unset to support both standard and enhanced traffic
+  # operatingPoint: <standard | enhanced >
+
+  replicas: 1
+
+  #  strategy:
+  #    type: Recreate
+
+  image:
+    # -- Image registry for Triton server
+    # registry: ""
+
+    # -- Image repository for Triton server
+    repository: sm-gpu-inference-server-standard-all
+
+    # -- Image tag for Triton server
+    # tag: ""
+
+  additionalEnvs: {}
+  additionalAnnotations: {}
+  additionalLabels: {}
+
+  useRecreateStrategy: false
+  enablePreStopHook: true
+
+  resources:
+    limits:
+      # -- GPU requirements for Triton server
+      nvidia.com/gpu: "1"
+
+  # Node selectors for Triton server deployments
+  nodeSelector:
+    dedicated: "speechmatics"
+    # gpu: "true"
+
+  # -- Tolerations for Triton server deployments
+  tolerations:
+    - key: "sku"
+      operator: "Equal"
+      value: "gpu"
+      effect: "NoSchedule"
+    - key: "node"
+      operator: "Equal"
+      value: "speechmatics"
+      effect: "NoSchedule"
+
+  # -- Startup probe with high failure threshold to account for long starting time for loading models
+  startupProbe:
+    httpGet:
+      path: /v2
+      port: 8000
+    # -- Default allows for ~15m for the probe to succeed since pod start time takes longer sometimes
+    periodSeconds: 15
+    failureThreshold: 60
+
+  # -- Liveness probe configuration
+  livenessProbe:
+    httpGet:
+      path: /v2
+      port: 8000
+    periodSeconds: 20
+    successThreshold: 1
+    failureThreshold: 3
+    timeoutSeconds: 15
+    initialDelaySeconds: 300
+
+  readinessProbe:
+    httpGet:
+      path: /v2/health/ready
+      port: 8000
+    periodSeconds: 20
+    successThreshold: 1
+    failureThreshold: 3
+    timeoutSeconds: 15
+    initialDelaySeconds: 2
+
+  # -- Time to wait before sending SIGKILL to triton container
+  # This is needed due to transcribers using the same connection to triton server pod
+  # preStop hook will wait for connections to drain in a triton container;
+  # However, the termination grace period needs to be long enough to drain active sessions
+  terminationGracePeriodSeconds: 600
+
+  autoscaling:
+    enabled: false
+    installDependencies: false
+    scalingConfig:
+      min_replicas: 1
+      max_replicas: 4
+      max_step: 2
+      cooldown_period: 120
+      metrics: []
+
+
+  # -- Configure licensing secret for inference server
+  licensing:
+    {}
+    # secretName: speechmatics-license
+    # createSecret: false
+    # license: b64encoded license json
+
+  service:
+    headless: false
+    ports:
+      http: 8000
+      grpc: 8001
+      metrics: 8002
+      sidecar: 8008
+    type: ClusterIP
+
+  ingress:
+    enabled: false
+    https: true
+
+  # Mount additional volumes insto triton container
+  additionalVolumeMounts: []
+
+# Additional volumes to be mounted into pod which could be used by Triton or IS
+additionalVolumes: []
+
+inferenceSidecar:
+  # -- Deploy inference sidecar container
+  enabled: true
+
+  image:
+    # -- Image repository for inference sidecar
+    repository: inference-sidecar
+
+  port: 8008
+  env: {}
+  # Handles connections to resource-manager to register tokens
+  resourceManager:
+    configMap:
+      # -- Enable reading resource-manager server information from configMap
+      enabled: false
+
+  # `SM_CRASH_DETECTOR_DRY_RUN` (true) - Should crash detector run in dry run only (only log) or actually unregister resource when triton crash is detected.
+  # `SM_CRASH_DETECTOR_THRESHOLD` (5) - How many times in a row should the liveness check fail in order to decide that triton has crashed. This check is checked every 1 second with 2 second request timeout.
+  # `SM_CRASH_DETECTOR_INTERVAL` (1s) - How often should the crash detector check if triton is alive.
+  # `SM_CRASH_DETECTOR_TIMEOUT` (2s) - Request timeout of crash detector.
+  crashDetectorDryRun: false
+
+  # -- Enable monitoring of pod status to de-register inference server features
+  registerConditions: false
+
+  # Details passed under registerFeatures will be converted as JSON and set to REGISTER_FEATURES env variable
+  # Passing required capacity and model_costs to registerFeatures dict will enable load balancing of triton server based on these parameters
+  # Triton server image version will get added to the JSON unless it is overridden by version key in registerFeatures dict
+  registerFeatures:
+    # -- Total capacity of inference server in terms of model cost
+    capacity: 480
+    modelCosts:
+      # -- Cost of English lm model request (Recipe 1)
+      lm_en: 20
+      # -- Cost of Spanish lm model request (Recipe 2)
+      lm_es: 20
+      # -- Cost of German lm model request (Recipe 3)
+      lm_de: 20
+      # -- Cost of French lm model reques (Recipe 4)
+      lm_fr: 20
+      # -- Cost of am model request
+      am: 0
+      # -- Cost of diar model request
+      diar: 0
+      # -- Cost of body model request
+      body: 0
+      # -- Cost of Non-Yuge ensemble model request
+      ensemble: 20
+      # -- Cost of English ensemble model request  (Recipe 1 / Standard)
+      ensemble_en: 20
+      # -- Cost of Spanish ensemble model request  (Recipe 2)
+      ensemble_es: 20
+      # -- Cost of German ensemble model request  (Recipe 3)
+      ensemble_de: 20
+      # -- Cost of French ensemble model request  (Recipe 4)
+      ensemble_fr: 20
+      # -- Cost of an audio_event_detection model request
+      audioEventDetection: 3
+
+    # -- Map of additional models to include under model_costs
+    additionalModelCosts: {}
+
+    # -- Map of model costs for custom recipe type
+    customModelCosts: {}
+
+  # batch stage queue details for recipe; config specifically required for when running in batch mode, ignored for rt mode
+  # queue_stage_name should match what is defined in Batch DAG config
+  gpuFlowControlConfig:
+    enhanced-recipe1:
+      queue_stage_name: k8sBufferEight
+      description: "GPU Recipe-1 language Enhanced"
+    enhanced-recipe2:
+      queue_stage_name: k8sBufferNineteen
+      description: "GPU Recipe-2 language Enhanced"
+    enhanced-recipe3:
+      queue_stage_name: k8sBufferTwenty
+      description: "GPU Recipe-3 language Enhanced"
+    enhanced-recipe4:
+      queue_stage_name: k8sBufferTwentyOne
+      description: "GPU Recipe-4 language Enhanced"
+    standard-all:
+      queue_stage_name: k8sBufferSeven
+      description: "GPU all Standard"
+    custom:
+      queue_stage_name: dummy
+      description: "custom queue"
+
+  resources:
+    requests:
+      cpu: 10m
+      memory: 50Mi
+
+# Configure datadog scrape annotations
+datadog:
+  # -- Add datadog annotations to pods for monitoring
+  addAnnotations: false
+  tritonServerMetrics: [
+    "nv_sequence_batch_scheduler_*"
+  ]
+  inferenceSidecarMetrics: ["open_connections", "unique_connected_ips"]
+
+# Configure secret store to use for ExternalSecrets secret management
+externalSecrets:
+  # Secret store to use for ExternalSecrets
+  secretStoreName: akv-secrets
+  secretStoreKind: ClusterSecretStore
+
+# Configure nvidia driver
+nvidiaDrivers:
+  enable: false
+
+  # -- Node selector for nvidia driver daemonset
+  nodeSelector:
+    gpu: "true"
+    dedicated: "speechmatics"
+
+  # -- Tolerations for nvidia driver daemonset
+  tolerations:
+    - key: "sku"
+      operator: "Equal"
+      value: "gpu"
+      effect: "NoSchedule"
+    - key: "node"
+      operator: "Equal"
+      value: "speechmatics"
+      effect: "NoSchedule"
+
+# Configure Prometheus and Keda for autoscaling
+# @ignore
+prometheus:
+  alertmanager:
+    enabled: false
+  kube-state-metrics:
+    enabled: false
+  prometheus-node-exporter:
+    enabled: false
+  prometheus-pushgateway:
+    enabled: false
+  server:
+    fullnameOverride: prometheus
+    replicaCount: 2
+    podDisruptionBudget:
+      enabled: true
+    retention: 5h
+    statefulSet:
+      enabled: true
+
+    # Configure so that statefulset only schedules in one zone
+    # We can leverage PDB to not scale down nodes of required zone
+    affinity:
+      podAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - prometheus
+              topologyKey: topology.kubernetes.io/zone
+
+tests:
+  enabled: false
+
+sessionGroups:
+  # -- Number of session groups to deploy
+  replicas: 1
+
+  allowedSurge: 1
+  maxPodsCreateAtOnce: 3
+  strategyRecreate: false
+
+  scaling:
+    minReplicas: 1
+    maxReplicas: 4
+
+    # -- How long to wait before removing pods
+    scaleDownDelay: 5m0s
+
+    # -- Capacity limit left before scaling up
+    scaleOnCapacityLeft: 10
+
+    # -- maximum number of pods to scale down at once
+    maxPodsScaledDownAtOnce: 10
+
+pdb:
+  # -- Enable pod disruption budget (PDB)
+  enabled: false
+  # -- minAvailable setting for PDB
+  minAvailable: 1

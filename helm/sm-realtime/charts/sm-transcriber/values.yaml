@@ -1,0 +1,598 @@
+global:
+  transcriber:
+    image:
+      # -- Registry to use for transcriber containers
+      registry: speechmaticsproduction.azurecr.io
+
+      # -- tag will default to .Chart.AppVersion
+      # tag: ""
+
+    # -- List of languages to support (defaults to GPU languages)
+    languages: []
+
+  resourceManager:
+    # -- URL of resource manager instance
+    url: http://resource-manager:8080
+
+    image:
+      registry: speechmaticsproduction.azurecr.io
+      tag: 1.34.4-1307514
+
+  licensing:
+    # -- Name of the secret to look for a license
+    secretName: speechmatics-license
+
+    # -- Have the chart manage the license secret
+    createSecret: false
+
+    # -- B64 encoded license to store in secret
+    license: ""
+
+    # -- Remote secret key when using external secrets
+    secretKey: ""
+
+    # -- Remote secret property when using external secrets
+    secretProperty: ""
+
+  sessionGroups:
+    # -- Deploy containers in SessionGroups instead of Deployments
+    enabled: true
+
+    scaling:
+      # -- Enable autoscaling of session groups
+      enabled: false
+
+  flow:
+    # -- Accept flow related engine configurations
+    flowUseLocalTranscriber: false
+
+readinessTracker:
+  # -- Deploy readiness-tracker sidecar on transcribers
+  enabled: true
+
+  image:
+    # -- Repository name for readiness tracker
+    repository: readiness-tracker
+
+  env: []
+
+  # -- Restart transcriber after N sessions
+  restartAfterNSessions: 0
+
+  # -- Enable monitoring of pod status to de-register transcriber features
+  registerConditions: false
+
+  # -- Production feature to pre-warm transcriber with enhanced sessions to reduce connection times
+  preWarm:
+    enabled: false
+    useAudio: true
+    everySession: false
+    operatingPoint: enhanced
+    contractId: "-77777777777777"
+    preWarmOnly: false
+
+  resources:
+    requests:
+      cpu: 10m
+      memory: 15Mi
+
+# Enabled for GPU workers
+workerProxy:
+  # -- Deploy worker-proxy sidecar container on transcribers
+  enabled: true
+
+  image:
+    repository: worker-proxy
+
+  # -- Check for inference-server capacity before allowing transcriber to start
+  # checkForCapacityOnStart: false
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 200Mi
+    requests:
+      cpu: 10m
+      memory: 15Mi
+
+  # -- Readiness probe for worker-proxy
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 8024
+    periodSeconds: 15
+    timeoutSeconds: 10
+    failureThreshold: 3
+
+  # -- Startup probe for worker-proxy
+  startupProbe:
+    httpGet:
+      path: /ready
+      port: 8024
+    periodSeconds: 1
+    timeoutSeconds: 10
+    failureThreshold: 180
+
+transcriber:
+  # -- Operating mode of transcriber
+  mode: "rt"
+  nodeSelector:
+    dedicated: "speechmatics"
+  env: []
+  additionalAnnotations: {}
+  additionalPodAnnotations: {}
+  additionalLabels: {}
+  additionalPodLabels: {}
+  useRecreateStrategy: false
+
+  image:
+    # -- This is used as an image prefix and will be appended with `-LANG` based on languages
+    repository: rt-asr-transcriber
+
+  # -- Image pull policy for the transcriber images
+  imagePullPolicy: IfNotPresent
+
+  # -- Allow runAsUser, runAsGroup, fsGroup etc to pass through
+  securityContext:
+    privileged: true
+    allowPrivilegeEscalation: true
+    runAsUser: 0
+    runAsGroup: 0
+    fsGroup: 0
+    runAsNonRoot: false
+
+  livenessProbe:
+    httpGet:
+      path: /live
+      port: health-port
+      scheme: HTTP
+    periodSeconds: 20
+    successThreshold: 1
+    failureThreshold: 6
+    timeoutSeconds: 19
+    initialDelaySeconds: 2
+
+  # -- Tolerations for transcriber pods
+  tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    - key: "node"
+      operator: "Equal"
+      value: "speechmatics"
+      effect: "NoSchedule"
+
+  # -- Speechmatics license secret configuration
+  licensing: {}
+    # secretName: speechmatics-license
+    # createSecret: false
+    # license: b64encoded license json
+
+  # Enable caching on the transcriber
+  cdCache:
+    # -- Enable caching of custom dictionary
+    enabled: false
+
+    # -- Type of CD caching. Can be one of "simple", "http" or "shared"
+    type: "http"
+
+    # volume:
+    #   mountPath: /test
+
+  speakerId:
+    # -- Enable speaker ID on transcriber
+    enabled: false
+
+    # When using external secrets value is key-vault ref
+    keys:
+      private-key: transcriber-private-key
+      public-key: transcriber-public-key
+
+    # When not using external secrets value base64 encoded values
+    # keys:
+    #   private-key: B64_private_key
+    #   public-key: B64_public_key
+
+  autoscaling:
+    enabled: false
+
+    replicas:
+      bufferSize: 2
+      minReplicas: 2
+      maxReplicas: 50
+
+  # Processor specific configuration
+  processors:
+    gpu:
+      # -- Environment variables to configure specifically on GPU transcribers
+      env: []
+
+      # -- Node selectors specifically for GPU transcribers
+      nodeSelector:
+        dedicated: "speechmatics"
+
+      # -- Tolerations specifically for GPU transcribers
+      tolerations:
+        - key: "node"
+          operator: "Equal"
+          value: "speechmatics"
+          effect: "NoSchedule"
+
+      # -- Resources specifically for GPU transcribers not defined under languages.overrides.resources
+      resources:
+        requests:
+          cpu: 300m
+          memory: 3.5Gi
+
+    cpu:
+      env: []
+      nodeSelector:
+        dedicated: "speechmatics"
+      tolerations: 
+        - key: "node"
+          operator: "Equal"
+          value: "speechmatics"
+          effect: "NoSchedule"
+
+      # -- Resources specifically for CPU transcribers not defined under languages.overrides.resources
+      resources:
+        requests:
+          cpu: 1150m
+          memory: 2Gi
+
+  maxConcurrentConnections:
+    configMap:
+      enabled: false
+    value: 1
+
+  languages:
+    # -- CPU languages to support
+    cpuLanguages: []
+    # -- GPU languages to support
+    gpuLanguages: []
+
+    # Override config based on transcriber language
+    overrides:
+      autoscaling: {}
+        # en:
+        #   bufferSize: 4
+        #   minReplicas: 1
+        #   maxReplicas: 50
+      sessionGroupsScaling: {}
+        # en:
+        #   enabled: false
+        #   maxReplicas: 20
+        #   minReplicas: 1
+        #   scaleDownDelay: 10s
+        #   scaleOnCapacityLeft: 5 # or scaleOnPodsLeft, which supports decimals
+
+      sessionGroupsDefrag: {}
+        # en:
+        #   enabled: false
+        #   maxIdlePodsOnScaleUp: 1
+
+      sessionGroupsRollout: {}
+        # en:
+        #   allowedSurge: 1
+        #   maxPodsCreateAtOnce: 3
+
+      # -- Maximum number of concurrent connections for each language
+      maxConcurrentConnections: {}
+        # en: 4
+        # es: 2
+
+      # -- Resources configured for each specific language
+      # @default -- `chart will add a default resources map; see values.yaml`
+      resources:
+        ar:
+          requests:
+            cpu: 500m
+            memory: 5Gi
+        ba:
+          requests:
+            cpu: 300m
+            memory: 3Gi
+        be:
+          requests:
+            cpu: 400m
+            memory: 2Gi
+        bg:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        bn:
+          requests:
+            cpu: 800m
+            memory: 3Gi
+        ca:
+          requests:
+            cpu: 450m
+            memory: 3Gi
+        cmn:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        cmn_en:
+          requests:
+            cpu: 350m
+            memory: 3Gi
+        cs:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        cy:
+          requests:
+            cpu: 300m
+            memory: 2Gi
+        da:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        de:
+          requests:
+            cpu: 500m
+            memory: 4Gi
+        el:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        en:
+          requests:
+            cpu: 600m
+            memory: 5Gi
+        eo:
+          requests:
+            cpu: 300m
+            memory: 2Gi
+        es:
+          requests:
+            cpu: 400m
+            memory: 5Gi
+        et:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        eu:
+          requests:
+            cpu: 300m
+            memory: 2Gi
+        fa:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        fi:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        fr:
+          requests:
+            cpu: 600m
+            memory: 5Gi
+        ga:
+          requests:
+            cpu: 800m
+            memory: 3Gi
+        gl:
+          requests:
+            cpu: 400m
+            memory: 2Gi
+        he:
+          requests:
+            cpu: 800m
+            memory: 3Gi
+        hi:
+          requests:
+            cpu: 600m
+            memory: 3Gi
+        hr:
+          requests:
+            cpu: 400m
+            memory: 2Gi
+        hu:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        ia:
+          requests:
+            cpu: 300m
+            memory: 2Gi
+        id:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        it:
+          requests:
+            cpu: 450m
+            memory: 3Gi
+        ja:
+          requests:
+            cpu: 500m
+            memory: 4Gi
+        ko:
+          requests:
+            cpu: 550m
+            memory: 4Gi
+        lt:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        lv:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        mn:
+          requests:
+            cpu: 400m
+            memory: 2Gi
+        mr:
+          requests:
+            cpu: 700m
+            memory: 2Gi
+        ms:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        mt:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        nl:
+          requests:
+            cpu: 550m
+            memory: 3Gi
+        'no':
+          requests:
+            cpu: 700m
+            memory: 3Gi
+        pl:
+          requests:
+            cpu: 550m
+            memory: 3Gi
+        pt:
+          requests:
+            cpu: 450m
+            memory: 3Gi
+        ro:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        ru:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        sk:
+          requests:
+            cpu: 450m
+            memory: 3Gi
+        sl:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        sv:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        sw:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        ta:
+          requests:
+            cpu: 600m
+            memory: 2Gi
+        th:
+          requests:
+            cpu: 450m
+            memory: 3Gi
+        tr:
+          requests:
+            cpu: 550m
+            memory: 3Gi
+        ug:
+          requests:
+            cpu: 450m
+            memory: 2Gi
+        uk:
+          requests:
+            cpu: 400m
+            memory: 3Gi
+        ur:
+          requests:
+            cpu: 600m
+            memory: 3Gi
+        vi:
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        yue:
+          requests:
+            cpu: 600m
+            memory: 2Gi
+
+  # configure service type and annotations
+  service: {}
+
+  # Volumes to mount into transcriber container
+  volumeMounts:
+    []
+    # - name: hello
+    #   path: goodbye
+
+  # Enable OTEL collection on the transcriber
+  # Will look for OTEL exporter on localhost port 4317
+  otel:
+    enabled: false
+
+# volumes to make available on transcriber pod
+volumes:
+  []
+  # - name: hello
+  #   hostPath: /hello
+
+translation:
+  enabled: true
+  url: triton-server-translation:8001
+
+# Enable provisioning of secrets using ExternalSecret resources
+externalSecrets:
+  enabled: false
+  secretStoreName: akv-secrets
+  secretStoreKind: ClusterSecretStore
+  provider: azure
+
+eats:
+  enabled: true
+  # -- URL to send usage data to. Defaults to "usage.speechmatics.com" if empty.
+  url: ""
+  # -- Enable or disable usage reporting
+  enableUsageReporting: false
+  # -- Enable or disable secure usage reporting
+  secure: false
+
+  # -- If enabled, URL comes from sm_eats_url key in the configMap
+  configMap:
+    enabled: false
+    # name: eats-cm
+
+
+# Override the resource manager URL, this will default to the release name
+resourceManager:
+  # Read RM configuration from configMap
+  configMap:
+    enabled: false
+
+# Enable transfer of sessions when using proxy-service infront of RT
+sessionTransfer:
+  enabled: true
+
+sessionGroups:
+  replicas: 1
+
+  allowedSurge: 1
+  maxPodsCreateAtOnce: 3
+  strategyRecreate: false
+
+  scaling:
+    minReplicas: 1
+    maxReplicas: 4
+
+    # -- Wait time before scaling down transcriber
+    scaleDownDelay: 1m0s
+
+    # -- Pod count capacity for when to scale up (Supports decimals)
+    scaleOnCapacityLeft: 5
+
+    # -- maximum number of pods to scale down at once
+    maxPodsScaledDownAtOnce: 10
+
+  defrag:
+    enabled: false
+    maxIdlePodsOnScaleUp: 1

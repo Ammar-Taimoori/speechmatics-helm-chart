@@ -1,0 +1,12 @@
+{{- if .Values.global.licensing.createSecret }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ default .Values.global.licensing.secretName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-realtime.labels" . | nindent 4 }}
+data:
+  license.json: {{ default .Values.global.licensing.license | quote }}
+{{- end }}
