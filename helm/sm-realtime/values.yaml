@@ -161,6 +161,13 @@ resourceManager:
 # PROXY
 #####################
 proxy:
+  tolerations:
+    - key: "node"
+      operator: "Equal"
+      value: "speechmatics"
+      effect: "NoSchedule"
+  nodeSelector:
+        dedicated: "speechmatics"
   # -- Enable proxy service
   enabled: true
   fullnameOverride: proxy
@@ -700,12 +707,3 @@ flow:
       secretName: vllm-secret
       # -- Base64 encoded Hugging Face token
       token: ""
-
-proxy:
-  tolerations:
-    - key: "node"
-      operator: "Equal"
-      value: "speechmatics"
-      effect: "NoSchedule"
-  nodeSelector:
-        dedicated: "speechmatics"
