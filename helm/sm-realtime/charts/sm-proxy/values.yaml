@@ -149,7 +149,7 @@ proxy:
     useInsecureWebsockets: true
 
     # -- Enable on-premise mode for proxy service
-    isOnPrem: false
+    isOnPrem: true
 
     auth:
       # -- Enable authentication check in proxy service
