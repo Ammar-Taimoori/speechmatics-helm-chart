@@ -146,7 +146,7 @@ proxy:
     localRuntimeHostname: ""
 
     # -- Allow proxy service to accept insecure websocket requests
-    useInsecureWebsockets: false
+    useInsecureWebsockets: true
 
     # -- Enable on-premise mode for proxy service
     isOnPrem: false
