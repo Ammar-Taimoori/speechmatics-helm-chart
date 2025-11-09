@@ -157,6 +157,11 @@ resourceManager:
     failureThreshold: 50
     periodSeconds: 15
 
+  # -- Additional environment variables for resource-manager
+  additionalEnv:
+    - name: SM_SKIP_CONTRACT_VERIFICATION
+      value: "true"
+
 #####################
 # PROXY
 #####################
