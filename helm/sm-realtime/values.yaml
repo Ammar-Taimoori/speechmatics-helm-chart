@@ -23,7 +23,7 @@ global:
   # -- Common transcriber/inference server configuration
   transcriber:
     # -- List of languages supported by environment
-    languages: ["ar"]
+    languages: ["ar","en"]
 
     image:
       # -- Registry to pull images from
@@ -157,11 +157,6 @@ resourceManager:
     failureThreshold: 50
     periodSeconds: 15
 
-  # -- Additional environment variables for resource-manager
-  additionalEnv:
-    - name: SM_SKIP_CONTRACT_VERIFICATION
-      value: "true"
-
 #####################
 # PROXY
 #####################
@@ -243,7 +238,7 @@ proxy:
 
   ingress:
     # -- Add ingress
-    enabled: true
+    enabled: false
 
     flow:
       # -- Enable Flow in ingress
