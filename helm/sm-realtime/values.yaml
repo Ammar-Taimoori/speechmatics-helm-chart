@@ -23,7 +23,7 @@ global:
   # -- Common transcriber/inference server configuration
   transcriber:
     # -- List of languages supported by environment
-    languages: ["ar","en"]
+    languages: ["ar"]
 
     image:
       # -- Registry to pull images from
@@ -134,8 +134,8 @@ resourceManager:
 
   redis:
     master:
-      presistence:
-        existingClaim: redis-speechmatics-data
+      # presistence:
+      #   existingClaim: redis-speechmatics-data
       tolerations:
         - key: "node"
           operator: "Equal"
@@ -156,6 +156,11 @@ resourceManager:
       port: 8080
     failureThreshold: 50
     periodSeconds: 15
+
+  # -- Additional environment variables for resource-manager
+  additionalEnv:
+    - name: SM_ON_PREM
+      value: "true"
 
 #####################
 # PROXY
@@ -220,7 +225,8 @@ proxy:
         enabled: false
 
       # -- Additional configuration variables for proxy
-      additionalConfig: {}
+      additionalConfig:
+        SM_DEFAULT_CONTRACT_ID: "on-prem-contract"
 
   events:
     # -- Enable sending events to eventhub
