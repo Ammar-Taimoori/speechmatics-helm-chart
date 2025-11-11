@@ -260,7 +260,8 @@ HTML_TEMPLATE = """
                         transcription_config: {
                             language: 'ar',
                             enable_partials: true,
-                            max_delay: 0.8
+                            max_delay: 0.8,
+                            operating_point: 'enhanced'
                         }
                     };
                     

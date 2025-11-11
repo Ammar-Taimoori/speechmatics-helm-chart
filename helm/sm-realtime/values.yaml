@@ -161,6 +161,8 @@ resourceManager:
   additionalEnv:
     - name: SM_ON_PREM
       value: "true"
+    - name: SM_DEFAULT_CONTRACT_ID
+      value: "1300"
 
 #####################
 # PROXY
@@ -226,7 +228,7 @@ proxy:
 
       # -- Additional configuration variables for proxy
       additionalConfig:
-        SM_DEFAULT_CONTRACT_ID: "on-prem-contract"
+        SM_DEFAULT_CONTRACT_ID: "1300"
 
   events:
     # -- Enable sending events to eventhub
