@@ -15,7 +15,7 @@ global:
     secretName: speechmatics-license
 
     # -- Create secret for license or read from existing secret
-    createSecret: true
+    createSecret: false
 
     # -- Base64 encoded license file
     license: "ewogICAgImNsaWVudGlkIjogIiIsCiAgICAiY29tbWVudCI6ICJUaWNrZXQgMTAzNDAwIiwKICAgICJjb250cmFjdGlkIjogIjEzMDAiLAogICAgImNyZWF0aW9uZGF0ZSI6ICIyMDI1LTEwLTA2IDEzOjI4OjU5IiwKICAgICJjdXN0b21lciI6ICJub3ZpdGFzIiwKICAgICJpZCI6ICI2ZDkzYTMyODcxZDE0ZjIwYTU0MDdiNDRmYTFmMmI5NiIsCiAgICAibGljZW5zZXR5cGUiOiAiUHJvZHVjdGlvbiIsCiAgICAibWV0YWRhdGEiOiB7CiAgICAgICAgImtleV9wYWlyX2lkIjogMSwKICAgICAgICAicmVxdWVzdCI6IHsKICAgICAgICAgICAgImNsaWVudGlkIjogIiIsCiAgICAgICAgICAgICJjb21tZW50IjogIlRpY2tldCAxMDM0MDAiLAogICAgICAgICAgICAiY29udHJhY3RpZCI6ICIxMzAwIiwKICAgICAgICAgICAgImN1c3RvbWVyIjogIm5vdml0YXMiLAogICAgICAgICAgICAiZmVhdHVyZXMiOiBbCiAgICAgICAgICAgICAgICAiTUFQUlQiLAogICAgICAgICAgICAgICAgIk1BUEJBIiwKICAgICAgICAgICAgICAgICJBTUNDIiwKICAgICAgICAgICAgICAgICJBUEQiLAogICAgICAgICAgICAgICAgIkFQUiIsCiAgICAgICAgICAgICAgICAiQVNTIiwKICAgICAgICAgICAgICAgICJBT1AyIiwKICAgICAgICAgICAgICAgICJBTElEIiwKICAgICAgICAgICAgICAgICJMQU5ZIgogICAgICAgICAgICBdLAogICAgICAgICAgICAibm90VmFsaWRBZnRlciI6ICIyMDI3LTA5LTI3IiwKICAgICAgICAgICAgInZhbGlkRnJvbSI6ICIyMDI1LTEwLTA2IgogICAgICAgIH0KICAgIH0sCiAgICAic2lnbmVkY2xhaW1zdG9rZW4iOiAiZXlKaGJHY2lPaUpTVXpJMU5pSXNJblI1Y0NJNklrcFhWQ0o5LmV5Sm1aV0YwZFhKbGN5STZXeUpOUVZCU1ZDSXNJazFCVUVKQklpd2lRVTFEUXlJc0lrRlFSQ0lzSWtGUVVpSXNJa0ZUVXlJc0lrRlBVRElpTENKQlRFbEVJaXdpVEVGT1dTSmRMQ0pqYjI1MGNtRmpkR2xrSWpvaU1UTXdNQ0lzSW1selgzUnlhV0ZzSWpwbVlXeHpaU3dpWlhod0lqb3hPREl5TURBek1qQXdMQ0pxZEdraU9pSTJaRGt6WVRNeU9EY3haREUwWmpJd1lUVTBNRGRpTkRSbVlURm1NbUk1TmlJc0ltbGhkQ0k2TVRjMU9UYzFOek16T1N3aWFYTnpJam9pVTNCbFpXTm9iV0YwYVdOeklpd2libUptSWpveE56VTVOekE0T0RBd0xDSnpkV0lpT2lKdWIzWnBkR0Z6SW4wLm83R3VXTk84Zk9Od1BuTDFXeUhQR2gyNFhSa0QtelF6eml5d0VkVHFrNHgzV1JLTFVxb0kzWlFiOTFSeE9na0dySWxacWk3ck9OaE50WXYxZFZvc044eG1yTDJuaEJlc0Ixd2xCTUZvVFpLMnhFM25DRWk2UWhQUUtQV1p1YURnZXRCc2dFR2VhOXlVWTNweFBnYnBCRGNOS0Z0cnVhdzd4b2tSVTNtLUJUQ0Q0V1NsaEM4LUZSc2plRTF2cVBjYklqdHU5RG1SUkIyOTVKNzZjRGhVQlM0T3JwOF91T215ZEstVVE5bFN3X2NqLWEtMXh0cW9PbzlQaE1TTTdicXR2X0pDbEYzck11aC14UkhhaGV6UFFLb3d4N2hRdEVHZ2dUQnJCWUFWczhocWdINTh2MmhkVzdXTHVjU0xLRC1iSWhVWU1qMjlBbzF1WGJ6emZQb2Y5ZyIsCiAgICAidW5pdHF1YW50aXR5IjogIiIsCiAgICAidW5pdHR5cGUiOiAiSG91cnMiLAogICAgInZlcnNpb24iOiAxCn0="
@@ -134,8 +134,8 @@ resourceManager:
 
   redis:
     master:
-      # presistence:
-      #   existingClaim: redis-speechmatics-data
+      presistence:
+        existingClaim: redis-speechmatics-data
       tolerations:
         - key: "node"
           operator: "Equal"
@@ -186,6 +186,11 @@ proxy:
       a:
         # -- Enable sessions to this deployment
         active: true
+        
+        # -- Additional environment variables for proxy deployment
+        additionalEnv:
+          - name: SM_VERIFIED_CONTRACT_ID
+            value: "1300"
 
     dns:
       # -- Enable DNS SRV lookup from external DNS source
@@ -208,7 +213,7 @@ proxy:
       useInsecureWebsockets: true
 
       # -- Worker connection type: hybrid (resource-manager), local (direct), or remote
-      workerConnectionType: hybrid
+      workerConnectionType: local
 
       auth:
         # -- Enable proxy to handle authentication
