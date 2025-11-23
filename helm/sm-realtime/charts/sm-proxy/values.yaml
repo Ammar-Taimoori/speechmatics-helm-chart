@@ -265,8 +265,8 @@ proxyCache:
     data: {}
 
     image:
-      repository: redis
-      tag: 7.2.4
+      repository: bitnamilegacy/redis
+      tag: 7.0.5-debian-11-r7
 
     resources:
       requests:
