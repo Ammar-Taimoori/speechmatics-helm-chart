@@ -23,7 +23,7 @@ global:
   # -- Common transcriber/inference server configuration
   transcriber:
     # -- List of languages supported by environment
-    languages: ["ar"]
+    languages: ["ar","en","hi","fa","ur"]
 
     image:
       # -- Registry to pull images from
