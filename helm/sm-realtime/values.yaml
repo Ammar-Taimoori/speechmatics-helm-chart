@@ -430,7 +430,7 @@ inferenceServerStandardAll:
 #####################################
 inferenceServerEnhancedRecipe1:
   # -- Enable deployment of inference server with enhanced model recipe 1
-  enabled: false
+  enabled: true
   fullnameOverride: inference-server-enhanced-recipe1
 
   tritonServer:
@@ -481,7 +481,7 @@ inferenceServerEnhancedRecipe1:
 #####################################
 inferenceServerEnhancedRecipe2:
   # -- Enable deployment of inference server with enhanced model recipe 2
-  enabled: false
+  enabled: true
   fullnameOverride: inference-server-enhanced-recipe2
 
   tritonServer:
@@ -532,7 +532,7 @@ inferenceServerEnhancedRecipe2:
 #####################################
 inferenceServerEnhancedRecipe3:
   # -- Enable deployment of inference server with enhanced model recipe 3
-  enabled: false
+  enabled: true
   fullnameOverride: inference-server-enhanced-recipe3
 
   tritonServer:
