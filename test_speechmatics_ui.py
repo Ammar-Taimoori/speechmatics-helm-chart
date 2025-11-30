@@ -235,6 +235,7 @@ HTML_TEMPLATE = """
         async function startRecording() {
             const wsUrl = document.getElementById('wsUrl').value;
             const selectedLanguage = document.getElementById('language').value;
+            const languageSelect = document.getElementById('language');
             const startBtn = document.getElementById('startBtn');
             const stopBtn = document.getElementById('stopBtn');
             const recordingIndicator = document.getElementById('recordingIndicator');
@@ -301,6 +302,7 @@ HTML_TEMPLATE = """
                         isRecording = true;
                         startBtn.disabled = true;
                         stopBtn.disabled = false;
+                        languageSelect.disabled = true;
                         recordingIndicator.classList.add('active');
                     }, 500);
                 };
@@ -346,12 +348,14 @@ HTML_TEMPLATE = """
                 updateStatus('✗ Error: ' + error.message, 'error');
                 startBtn.disabled = false;
                 stopBtn.disabled = true;
+                document.getElementById('language').disabled = false;
             }
         }
 
         function stopRecording() {
             const startBtn = document.getElementById('startBtn');
             const stopBtn = document.getElementById('stopBtn');
+            const languageSelect = document.getElementById('language');
             const recordingIndicator = document.getElementById('recordingIndicator');
 
             isRecording = false;
@@ -371,6 +375,7 @@ HTML_TEMPLATE = """
 
             startBtn.disabled = false;
             stopBtn.disabled = true;
+            languageSelect.disabled = false;
             recordingIndicator.classList.remove('active');
             
             updateStatus('Recording stopped', 'info');
