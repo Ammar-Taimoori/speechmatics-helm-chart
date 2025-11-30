@@ -548,6 +548,19 @@ inferenceServerEnhancedRecipe3:
     # -- Set to enhanced-recipe3 to deploy Enhanced model recipe 3
     recipe: enhanced-recipe3
 
+    tolerations:
+      - key: "sku"
+        operator: "Equal"
+        value: "gpu"
+        effect: "NoSchedule"
+      - key: "node"
+        operator: "Equal"
+        value: "speechmatics"
+        effect: "NoSchedule"
+
+    nodeSelector:
+      dedicated: "speechmatics"
+
   inferenceSidecar:
     # -- Enable deploying inference sidecar for inference servers
     enabled: true
