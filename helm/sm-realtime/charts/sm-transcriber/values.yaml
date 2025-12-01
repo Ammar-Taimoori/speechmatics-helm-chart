@@ -117,7 +117,7 @@ transcriber:
   # -- Operating mode of transcriber
   mode: "rt"
   nodeSelector:
-    dedicated: "speechmatics"
+    dedicated: "speechmatics-cpu"
   env: []
   additionalAnnotations: {}
   additionalPodAnnotations: {}
