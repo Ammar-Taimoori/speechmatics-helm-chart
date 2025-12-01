@@ -215,16 +215,18 @@ transcriber:
       # -- Environment variables to configure specifically on GPU transcribers
       env: []
 
-      # -- Node selectors specifically for GPU transcribers
-      nodeSelector:
-        dedicated: "speechmatics"
+      # # -- Node selectors specifically for GPU transcribers
+      # nodeSelector:
+      #   dedicated: "speechmatics"
 
-      # -- Tolerations specifically for GPU transcribers
-      tolerations:
-        - key: "node"
-          operator: "Equal"
-          value: "speechmatics"
-          effect: "NoSchedule"
+      # # -- Tolerations specifically for GPU transcribers
+      # tolerations:
+      #   - key: "node"
+      #     operator: "Equal"
+      #     value: "speechmatics"
+      #     effect: "NoSchedule"
+      nodeSelector: {}
+      tolerations: []
 
       # -- Resources specifically for GPU transcribers not defined under languages.overrides.resources
       resources:
