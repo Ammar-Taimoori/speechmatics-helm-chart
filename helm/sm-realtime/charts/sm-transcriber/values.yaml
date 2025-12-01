@@ -167,7 +167,7 @@ transcriber:
       operator: Exists
     - key: "node"
       operator: "Equal"
-      value: "speechmatics"
+      value: "speechmatics-cpu"
       effect: "NoSchedule"
 
   # -- Speechmatics license secret configuration
@@ -235,11 +235,11 @@ transcriber:
     cpu:
       env: []
       nodeSelector:
-        dedicated: "speechmatics"
+        dedicated: "speechmatics-cpu"
       tolerations: 
         - key: "node"
           operator: "Equal"
-          value: "speechmatics"
+          value: "speechmatics-cpu"
           effect: "NoSchedule"
 
       # -- Resources specifically for CPU transcribers not defined under languages.overrides.resources

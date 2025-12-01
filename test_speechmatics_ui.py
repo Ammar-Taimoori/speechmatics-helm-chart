@@ -170,6 +170,10 @@ HTML_TEMPLATE = """
                 <option value="hi">Hindi (hi)</option>
                 <option value="fa">Farsi/Persian (fa)</option>
                 <option value="ur">Urdu (ur)</option>
+                <option value="tl">Tagalog (tl)</option>
+                <option value="bn">Bengali (bn)</option>
+                <option value="ta">Tamil (ta)</option>
+                <option value="tr">Turkish (tr)</option>
             </select>
         </div>
 

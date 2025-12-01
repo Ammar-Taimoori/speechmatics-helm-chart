@@ -23,7 +23,7 @@ global:
   # -- Common transcriber/inference server configuration
   transcriber:
     # -- List of languages supported by environment
-    languages: ["ar","en","hi","fa","ur"]
+    languages: ["ar","en","hi","fa","ur","tl","bn","ta","tr"]
 
     image:
       # -- Registry to pull images from
@@ -61,6 +61,7 @@ global:
       enabled: false
 
   proxy:
+    replicas: 4
     image:
       # -- Registry to pull images from
       registry: speechmaticspublic.azurecr.io
