@@ -61,7 +61,6 @@ global:
       enabled: false
 
   proxy:
-    replicas: 4
     image:
       # -- Registry to pull images from
       registry: speechmaticspublic.azurecr.io
@@ -169,6 +168,7 @@ resourceManager:
 # PROXY
 #####################
 proxy:
+  replicas: 4
   tolerations:
     - key: "node"
       operator: "Equal"
@@ -381,7 +381,7 @@ transcribers:
 #################################
 inferenceServerStandardAll:
   # -- Enable deployment of inference server with standard model recipe
-  enabled: false
+  enabled: true
   fullnameOverride: inference-server-standard-all
 
   tritonServer:
