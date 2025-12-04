@@ -11,7 +11,7 @@ global:
   imagePullSecrets: []
 
 # -- Number of replicas
-replicas: 1
+replicas: 0
 
 # -- Additional deployment annotations
 additionalAnnotations: {}

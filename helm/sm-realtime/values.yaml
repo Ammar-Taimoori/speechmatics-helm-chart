@@ -326,7 +326,7 @@ transcribers:
 
     preWarm:
       # -- Run a pre-warm session on start to improve startup connection times
-      enabled: true
+      enabled: false
 
       # -- Operating point used for the preWarm session
       operatingPoint: enhanced
