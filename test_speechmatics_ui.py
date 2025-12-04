@@ -165,15 +165,15 @@ HTML_TEMPLATE = """
         <div class="config-section">
             <label for="language">Select Language:</label>
             <select id="language">
-                <option value="ar">Arabic (ar)</option>
-                <option value="en">English (en)</option>
-                <option value="hi">Hindi (hi)</option>
-                <option value="fa">Farsi/Persian (fa)</option>
-                <option value="ur">Urdu (ur)</option>
-                <option value="tl">Tagalog (tl)</option>
-                <option value="bn">Bengali (bn)</option>
-                <option value="ta">Tamil (ta)</option>
-                <option value="tr">Turkish (tr)</option>
+                <option value="ar" data-operating-point="enhanced">Arabic (ar)</option>
+                <option value="en" data-operating-point="enhanced">English (en)</option>
+                <option value="hi" data-operating-point="enhanced">Hindi (hi)</option>
+                <option value="fa" data-operating-point="enhanced">Farsi/Persian (fa)</option>
+                <option value="ur" data-operating-point="enhanced">Urdu (ur)</option>
+                <option value="tl" data-operating-point="standard">Tagalog (tl)</option>
+                <option value="bn" data-operating-point="enhanced">Bengali (bn)</option>
+                <option value="ta" data-operating-point="enhanced">Tamil (ta)</option>
+                <option value="tr" data-operating-point="enhanced">Turkish (tr)</option>
             </select>
         </div>
 
@@ -238,8 +238,9 @@ HTML_TEMPLATE = """
 
         async function startRecording() {
             const wsUrl = document.getElementById('wsUrl').value;
-            const selectedLanguage = document.getElementById('language').value;
             const languageSelect = document.getElementById('language');
+            const selectedLanguage = languageSelect.value;
+            const operatingPoint = languageSelect.selectedOptions[0].getAttribute('data-operating-point');
             const startBtn = document.getElementById('startBtn');
             const stopBtn = document.getElementById('stopBtn');
             const recordingIndicator = document.getElementById('recordingIndicator');
@@ -275,7 +276,8 @@ HTML_TEMPLATE = """
                     ws.send(JSON.stringify({
                         type: 'config',
                         speechmatics_url: wsUrl,
-                        language: selectedLanguage
+                        language: selectedLanguage,
+                        operating_point: operatingPoint
                     }));
                     
                     // Wait a moment for backend to connect to Speechmatics
@@ -399,13 +401,14 @@ def safe_send_to_client(ws_client, message_dict):
         print(f"Warning: Failed to send to client: {e}")
         return False
 
-async def transcribe_audio_stream(ws_client, speechmatics_url, audio_queue, language='en'):
+async def transcribe_audio_stream(ws_client, speechmatics_url, audio_queue, language='en', operating_point='enhanced'):
     """
     Stream audio from browser to Speechmatics using WebSocket with X-Request-ID header
     """
     print(f"\n{'='*60}")
     print(f"Connecting to Speechmatics at: {speechmatics_url}")
     print(f"Language: {language}")
+    print(f"Operating Point: {operating_point}")
     
     try:
         # Generate unique request ID for this session
@@ -449,11 +452,11 @@ async def transcribe_audio_stream(ws_client, speechmatics_url, audio_queue, lang
                     "language": language,
                     "enable_partials": True,
                     "max_delay": 0.8,
-                    "operating_point": "enhanced"
+                    "operating_point": operating_point
                 }
             }
             
-            print(f"Sending StartRecognition message with language: {language}...")
+            print(f"Sending StartRecognition message with language: {language} and operating point: {operating_point}...")
             await websocket.send(json.dumps(start_message))
             
             # Send audio to Speechmatics
@@ -616,14 +619,16 @@ def websocket_handler(ws):
                     if data.get('type') == 'config':
                         speechmatics_url = data.get('speechmatics_url')
                         selected_language = data.get('language', 'en')
+                        operating_point = data.get('operating_point', 'enhanced')
                         print(f"✓ Config received - Speechmatics URL: {speechmatics_url}")
                         print(f"✓ Selected language: {selected_language}")
+                        print(f"✓ Operating point: {operating_point}")
                         
                         # Start transcription session in background thread
                         if speechmatics_url:
                             safe_send_to_client(ws, {
                                 'type': 'status',
-                                'message': f'Starting transcription session for {selected_language.upper()}...',
+                                'message': f'Starting transcription session for {selected_language.upper()} with operating point {operating_point}...',
                                 'status': 'info'
                             })
                             
@@ -633,7 +638,7 @@ def websocket_handler(ws):
                                 loop = asyncio.new_event_loop()
                                 asyncio.set_event_loop(loop)
                                 loop.run_until_complete(
-                                    transcribe_audio_stream(ws, speechmatics_url, audio_queue, selected_language)
+                                    transcribe_audio_stream(ws, speechmatics_url, audio_queue, selected_language, operating_point)
                                 )
                             
                             print("Starting transcription thread...")
